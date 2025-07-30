@@ -8,6 +8,7 @@ import { ReviewModule } from './reviews/reviews.module';
 import { RoomModule } from './room/room.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
+import { TypeRoomModule } from './type-room/type-room.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AuthModule } from './auth/auth.module';
     ReviewModule,
     RoomModule,
     AuthModule,
+    TypeRoomModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,5 +1,5 @@
-import { Booking } from 'src/booking/entities/booking.entity';
-import { TypeRoom } from 'src/type-room/entities/type-room.entity';
+import { Booking } from 'src/module/booking/entities/booking.entity';
+import { TypeRoom } from 'src/module/type-room/entities/type-room.entity';
 import {
   Column,
   Entity,

@@ -9,9 +9,9 @@ import {
 } from 'typeorm';
 import { TypeBooking } from '../enums/TypeBooking';
 import { BookingStatus } from '../enums/bookingStatus';
-import { User } from 'src/users/entities/user.entity';
-import { Room } from 'src/room/entities/room.entity';
-import { Review } from 'src/reviews/entities/review.entity';
+import { User } from 'src/module/users/entities/user.entity';
+import { Room } from 'src/module/room/entities/room.entity';
+import { Review } from 'src/module/reviews/entities/review.entity';
 
 @Entity()
 export class Booking {

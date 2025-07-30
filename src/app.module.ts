@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UsersModule } from './users/users.module';
+import { UsersModule } from './module/users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BookingModule } from './booking/booking.module';
-import { ReviewModule } from './reviews/reviews.module';
-import { RoomModule } from './room/room.module';
+import { BookingModule } from './module/booking/booking.module';
+import { ReviewModule } from './module/reviews/reviews.module';
+import { RoomModule } from './module/room/room.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthModule } from './auth/auth.module';
-import { TypeRoomModule } from './type-room/type-room.module';
+import { AuthModule } from './module/auth/auth.module';
+import { TypeRoomModule } from './module/type-room/type-room.module';
 
 @Module({
   imports: [

@@ -6,6 +6,10 @@ import { HashingProvider } from './providers/hashing.provider';
 import { BcryptProvider } from './providers/bcrypt.provider';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/entities/user.entity';
+import { ConfigModule } from '@nestjs/config';
+import jwtConfig from 'src/config/jwt.config';
+import { JwtModule } from '@nestjs/jwt';
+import { GenerateTokenProvider } from './providers/generate-token.provider';
 
 @Module({
   controllers: [AuthController],
@@ -15,8 +19,14 @@ import { User } from '../users/entities/user.entity';
       provide: HashingProvider,
       useClass: BcryptProvider,
     },
+    GenerateTokenProvider,
   ],
-  imports: [TypeOrmModule.forFeature([User]), forwardRef(() => UsersModule)],
+  imports: [
+    TypeOrmModule.forFeature([User]),
+    forwardRef(() => UsersModule),
+    ConfigModule.forFeature(jwtConfig),
+    JwtModule.registerAsync(jwtConfig.asProvider()),
+  ],
   exports: [AuthService, HashingProvider],
 })
 export class AuthModule {}

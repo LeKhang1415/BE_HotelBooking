@@ -14,6 +14,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { instanceToPlain } from 'class-transformer';
 import { LogInUserDto } from './dtos/login.dto';
+import { GenerateTokenProvider } from './providers/generate-token.provider';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +27,8 @@ export class AuthService {
 
     // Inject HashingProvider
     private readonly hashingProvider: HashingProvider,
+
+    private readonly generateTokenProvider: GenerateTokenProvider,
   ) {}
 
   async handleRegister(registerUserDto: RegisterUserDto) {
@@ -59,7 +62,21 @@ export class AuthService {
       );
     }
 
-    return instanceToPlain(newUser);
+    const { accessToken, refreshToken } =
+      await this.generateTokenProvider.generateToken(newUser);
+
+    const { id, name, email, role } = newUser;
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id,
+        name,
+        email,
+        role,
+      },
+    };
   }
 
   public async handleLogIn(logInUserDto: LogInUserDto) {
@@ -96,6 +113,20 @@ export class AuthService {
       );
     }
 
-    return null;
+    const { accessToken, refreshToken } =
+      await this.generateTokenProvider.generateToken(existingUser);
+
+    const { id, name, email, role } = existingUser;
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id,
+        name,
+        email,
+        role,
+      },
+    };
   }
 }

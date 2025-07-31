@@ -7,7 +7,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { TypeBooking } from '../enums/TypeBooking';
+import { TypeBooking } from '../enums/typeBooking';
 import { BookingStatus } from '../enums/bookingStatus';
 import { User } from 'src/module/users/entities/user.entity';
 import { Room } from 'src/module/room/entities/room.entity';
@@ -18,16 +18,16 @@ export class Booking {
   @PrimaryGeneratedColumn('uuid')
   bookingId: string;
 
-  @Column({ type: 'datetime', nullable: false })
+  @Column({ type: 'timestamp', nullable: false })
   startTime: Date;
 
-  @Column({ type: 'datetime', nullable: false })
+  @Column({ type: 'timestamp', nullable: false })
   endTime: Date;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   actualCheckIn?: Date;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   actualCheckOut?: Date;
 
   @Column({ type: 'enum', enum: TypeBooking })

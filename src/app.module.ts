@@ -9,19 +9,20 @@ import { RoomModule } from './module/room/room.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthModule } from './module/auth/auth.module';
 import { TypeRoomModule } from './module/type-room/type-room.module';
+import databaseConfig from './config/database.config';
 
 @Module({
   imports: [
-    UsersModule,
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [databaseConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        //entities: [User],
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('database.synchronize'),
         port: configService.get('database.port'),
         username: configService.get('database.user'),
@@ -31,6 +32,7 @@ import { TypeRoomModule } from './module/type-room/type-room.module';
         database: configService.get('database.name'),
       }),
     }),
+    UsersModule,
     BookingModule,
     ReviewModule,
     RoomModule,

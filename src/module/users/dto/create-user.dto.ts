@@ -1,5 +1,5 @@
-import { IsEmail, IsNotEmpty, Length } from 'class-validator';
-import { UserRole } from '../enum/userRole.enum';
+import { IsEmail, IsEnum, IsNotEmpty, Length } from 'class-validator';
+import { UserRole } from '../enum/user-role.enum';
 
 export class CreateUserDto {
   @Length(1, 50, { message: 'Tên quá dài (tối đa 50 ký tự)' })
@@ -12,5 +12,6 @@ export class CreateUserDto {
   password: string;
 
   @IsNotEmpty({ message: 'Vai trò người dùng không được để trống' })
+  @IsEnum(UserRole)
   role: UserRole;
 }

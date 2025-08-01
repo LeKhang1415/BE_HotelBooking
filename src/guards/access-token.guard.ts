@@ -9,7 +9,6 @@ import { ConfigType } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IncomingHttpHeaders } from 'http';
-import { Observable } from 'rxjs';
 import jwtConfig from 'src/config/jwt.config';
 import { REQUEST_USER_KEY } from 'src/constants/auth.constants';
 import { JwtPayload } from 'src/module/auth/interfaces/jwt-payload.interface';

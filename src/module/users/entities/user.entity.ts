@@ -2,7 +2,7 @@ import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Review } from 'src/module/reviews/entities/review.entity';
 import { Booking } from 'src/module/booking/entities/booking.entity';
-import { UserRole } from '../enum/userRole.enum';
+import { UserRole } from '../enum/user-role.enum';
 
 @Entity()
 export class User {

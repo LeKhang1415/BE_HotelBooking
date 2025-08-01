@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigType } from '@nestjs/config';
 import jwtConfig from 'src/config/jwt.config';
-import { ActiveUserInterface } from '../interfaces/ActiveUserInterface';
 import { User } from 'src/module/users/entities/user.entity';
+import { JwtPayload } from '../interfaces/jwt-payload.interface';
 
 @Injectable()
 export class GenerateTokenProvider {
@@ -37,7 +37,7 @@ export class GenerateTokenProvider {
     // Tạo đồng thời accessToken và refreshToken bằng Promise.all để tối ưu tốc độ
     const [accessToken, refreshToken] = await Promise.all([
       // Tạo accessToken với payload có chứa email (dạng Partial để không cần đủ ActiveUserInterface)
-      this.signToken<Partial<ActiveUserInterface>>(
+      this.signToken<Partial<JwtPayload>>(
         user.id,
         this.jwtConfiguration.accessTokenTtl,
         {

@@ -12,7 +12,6 @@ import { RegisterUserDto } from './dtos/register.dto';
 import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { instanceToPlain } from 'class-transformer';
 import { LogInUserDto } from './dtos/login.dto';
 import { GenerateTokenProvider } from './providers/generate-token.provider';
 

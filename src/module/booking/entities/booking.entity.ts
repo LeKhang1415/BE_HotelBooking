@@ -47,7 +47,7 @@ export class Booking {
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   })
-  user: User;
+  user?: User;
 
   @ManyToOne(() => Room, (room) => room.bookings, {
     onDelete: 'CASCADE',

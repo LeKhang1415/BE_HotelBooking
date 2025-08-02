@@ -1,4 +1,4 @@
 export enum TypeBooking {
-  Hourly = 'Hourly',
-  Daily = 'Daily',
+  HOURLY = 'hourly',
+  DAILY = 'daily',
 }

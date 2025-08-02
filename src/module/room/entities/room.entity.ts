@@ -2,22 +2,24 @@ import { Booking } from 'src/module/booking/entities/booking.entity';
 import { TypeRoom } from 'src/module/type-room/entities/type-room.entity';
 import {
   Column,
+  CreateDateColumn,
   Entity,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity()
 export class Room {
   @PrimaryGeneratedColumn('uuid')
-  id: number;
-
-  @Column()
-  pricePerDay: number;
+  id: string;
 
   @Column({ length: 50, unique: true })
   name: string;
+
+  @Column()
+  pricePerDay: number;
 
   @Column()
   pricePerHour: number;
@@ -39,4 +41,10 @@ export class Room {
     onUpdate: 'CASCADE',
   })
   bookings: Booking[];
+
+  @CreateDateColumn()
+  createdDate: Date;
+
+  @UpdateDateColumn()
+  updateDate: Date;
 }

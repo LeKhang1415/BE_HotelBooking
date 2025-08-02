@@ -1,12 +1,20 @@
 import { Room } from 'src/module/room/entities/room.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  DeleteDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity()
 export class TypeRoom {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ length: 50 })
+  @Column({ length: 50, unique: true })
   name: string;
 
   @Column({ type: 'text' })
@@ -25,8 +33,16 @@ export class TypeRoom {
   maxPeople: number;
 
   @OneToMany(() => Room, (room) => room.typeRoom, {
-    onDelete: 'CASCADE',
-    onUpdate: 'CASCADE',
+    cascade: true,
   })
   rooms: Room[];
+
+  @CreateDateColumn()
+  createdDate: Date;
+
+  @UpdateDateColumn()
+  updateDate: Date;
+
+  @DeleteDateColumn()
+  deleteAt: Date;
 }

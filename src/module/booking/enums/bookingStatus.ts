@@ -1,7 +1,9 @@
 export enum BookingStatus {
-  Paid = 'Paid',
-  Unpaid = 'Unpaid',
-  CheckedIn = 'CheckedIn',
-  CheckedOut = 'CheckedOut',
-  Cancelled = 'Cancelled',
+  Unpaid = 'unpaid', // Chưa thanh toán
+  Paid = 'paid', // Đã thanh toán
+  CheckedIn = 'checked_in', // Đã check-in
+  Completed = 'completed', // Hoàn thành (đã check-out)
+  Cancelled = 'cancelled', // Đã hủy bởi khách
+  Rejected = 'rejected', // Bị từ chối bởi admin
+  NoShow = 'no_show', // Không đến
 }

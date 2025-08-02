@@ -21,9 +21,9 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
 
-    console.log(user);
+    const user = request[REQUEST_USER_KEY];
 
     if (!user || !user.role) {
       throw new ForbiddenException('Không xác định được vai trò người dùng');

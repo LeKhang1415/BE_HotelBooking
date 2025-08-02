@@ -16,6 +16,7 @@ import { AccessTokenGuard } from './guards/access-token.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { PaginationModule } from './common/pagination/pagination.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { RolesGuard } from './guards/roles.guard';
     TypeRoomModule,
     ConfigModule.forFeature(jwtConfig),
     JwtModule.registerAsync(jwtConfig.asProvider()),
+    PaginationModule,
   ],
   controllers: [AppController],
   providers: [

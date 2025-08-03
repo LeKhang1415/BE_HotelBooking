@@ -3,12 +3,15 @@ import { TypeRoom } from 'src/module/type-room/entities/type-room.entity';
 import {
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { RoomStatus } from '../enums/room-status.enum';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class Room {
@@ -33,6 +36,9 @@ export class Room {
   @Column({ type: 'text' })
   facilities: string;
 
+  @Column({ type: 'enum', enum: RoomStatus, default: RoomStatus.ACTIVE })
+  roomStatus: string;
+
   @ManyToOne(() => TypeRoom, { onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   typeRoom: TypeRoom;
 
@@ -43,8 +49,13 @@ export class Room {
   bookings: Booking[];
 
   @CreateDateColumn()
+  @Exclude()
   createdDate: Date;
 
   @UpdateDateColumn()
+  @Exclude()
   updateDate: Date;
+
+  @DeleteDateColumn()
+  deleteDate: Date;
 }

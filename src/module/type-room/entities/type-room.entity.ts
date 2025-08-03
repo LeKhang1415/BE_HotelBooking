@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import { Room } from 'src/module/room/entities/room.entity';
 import {
   Column,
@@ -38,11 +39,14 @@ export class TypeRoom {
   rooms: Room[];
 
   @CreateDateColumn()
+  @Exclude()
   createdDate: Date;
 
   @UpdateDateColumn()
+  @Exclude()
   updateDate: Date;
 
   @DeleteDateColumn()
+  @Exclude()
   deleteAt: Date;
 }

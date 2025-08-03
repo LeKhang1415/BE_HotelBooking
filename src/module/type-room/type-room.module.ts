@@ -9,5 +9,6 @@ import { PaginationModule } from 'src/common/pagination/pagination.module';
   controllers: [TypeRoomController],
   providers: [TypeRoomService],
   imports: [TypeOrmModule.forFeature([TypeRoom]), PaginationModule],
+  exports: [TypeRoomService],
 })
 export class TypeRoomModule {}

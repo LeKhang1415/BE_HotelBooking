@@ -6,12 +6,13 @@ import { PaginationModule } from 'src/common/pagination/pagination.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
+import { Booking } from '../booking/entities/booking.entity';
 
 @Module({
   controllers: [RoomController],
   providers: [RoomService],
   imports: [
-    TypeOrmModule.forFeature([Room, TypeRoom]),
+    TypeOrmModule.forFeature([Room, TypeRoom, Booking]),
     TypeRoomModule,
     PaginationModule,
   ],

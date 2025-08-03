@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateRoomDto } from './dtos/create-room.dto';
 import { UpdateRoomDto } from './dtos/update-room.dto';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { GetRoomDto } from './dtos/get-room.dto';
+import { RoomStatus } from './enums/room-status.enum';
+import { Booking } from '../booking/entities/booking.entity';
+import { BookingStatus } from '../booking/enums/bookingStatus';
+import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 
 @Injectable()
 export class RoomService {
@@ -22,26 +26,29 @@ export class RoomService {
     @InjectRepository(TypeRoom)
     private readonly typeRoomRepository: Repository<TypeRoom>,
 
+    @InjectRepository(Booking)
+    private readonly bookingRepository: Repository<Booking>,
+
     private readonly paginationProvider: PaginationProvider,
   ) {}
 
   public async create(createRoomDto: CreateRoomDto): Promise<Room> {
-    // Kiểm tra tên phòng đã tồn tại
+    // Kiểm tra xem tên phòng đã tồn tại chưa
     const existingRoom = await this.roomRepository.findOne({
       where: { name: createRoomDto.name },
     });
 
     if (existingRoom) {
-      throw new BadRequestException('Room name already exists');
+      throw new BadRequestException('Tên phòng đã tồn tại');
     }
 
-    // Kiểm tra loại phòng tồn tại
+    // Kiểm tra xem loại phòng có tồn tại không
     const typeRoom = await this.typeRoomRepository.findOne({
       where: { id: createRoomDto.typeRoomId },
     });
 
     if (!typeRoom) {
-      throw new NotFoundException('Room type not found');
+      throw new NotFoundException('Không tìm thấy loại phòng');
     }
 
     const room = this.roomRepository.create({
@@ -55,18 +62,18 @@ export class RoomService {
   public async update(id: string, updateRoomDto: UpdateRoomDto): Promise<Room> {
     const room = await this.findOne(id);
 
-    // Kiểm tra tên trùng lặp nếu có thay đổi tên
+    // Nếu có thay đổi tên phòng thì kiểm tra trùng lặp
     if (updateRoomDto.name && updateRoomDto.name !== room.name) {
       const existingRoom = await this.roomRepository.findOne({
         where: { name: updateRoomDto.name },
       });
 
       if (existingRoom) {
-        throw new BadRequestException('Room name already exists');
+        throw new BadRequestException('Tên phòng đã tồn tại');
       }
     }
 
-    // Kiểm tra loại phòng nếu có thay đổi
+    // Nếu có thay đổi loại phòng thì kiểm tra lại
     if (
       updateRoomDto.typeRoomId &&
       updateRoomDto.typeRoomId !== room.typeRoom.id
@@ -76,13 +83,13 @@ export class RoomService {
       });
 
       if (!typeRoom) {
-        throw new NotFoundException('Room type not found');
+        throw new NotFoundException('Không tìm thấy loại phòng');
       }
 
       room.typeRoom = typeRoom;
     }
 
-    // Cập nhật các field khác
+    // Cập nhật các trường khác
     Object.assign(room, updateRoomDto);
 
     return await this.roomRepository.save(room);
@@ -95,11 +102,12 @@ export class RoomService {
     });
 
     if (!room) {
-      throw new NotFoundException('Room not found');
+      throw new NotFoundException('Không tìm thấy phòng');
     }
 
     return room;
   }
+
   public async findAll(getRoomDto: GetRoomDto): Promise<Paginated<Room>> {
     const { typeRoomId, status, minPrice, maxPrice, priceType, ...pagination } =
       getRoomDto;
@@ -115,6 +123,7 @@ export class RoomService {
     if (status) {
       queryBuilder.andWhere('room.roomStatus =:status', { status });
     }
+
     if (minPrice && maxPrice && priceType) {
       const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
 
@@ -128,5 +137,89 @@ export class RoomService {
       pagination,
       queryBuilder,
     );
+  }
+
+  public async findAvailableRoomsInTime(
+    findAvailableRoomDto: FindAvailableRoomDto,
+  ): Promise<Paginated<Room>> {
+    const {
+      startTime,
+      endTime,
+      typeRoomId,
+      minPrice,
+      maxPrice,
+      priceType,
+      ...pagination
+    } = findAvailableRoomDto;
+
+    const conflictingBookings = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .select('booking.room.id', 'roomId')
+      .innerJoin('booking.room', 'room')
+      .where('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
+        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
+      })
+      .andWhere(
+        'booking.startTime < :endTime AND booking.endTime > :startTime',
+        { startTime, endTime },
+      )
+      .getRawMany();
+
+    const unavailableRoomIds = conflictingBookings.map(
+      (booking) => booking.roomId,
+    );
+
+    let queryBuilder = this.roomRepository
+      .createQueryBuilder('room')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE });
+
+    if (conflictingBookings.length > 0) {
+      queryBuilder.andWhere('room.id NOT IN (...:unavailableRoomIds)', {
+        unavailableRoomIds,
+      });
+    }
+
+    if (typeRoomId) {
+      queryBuilder.andWhere('room.typeRoom.id = :typeRoomId', { typeRoomId });
+    }
+
+    if (minPrice && maxPrice && priceType) {
+      const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
+
+      queryBuilder.andWhere(`${priceField} BETWEEN :minPrice AND :maxPrice`, {
+        minPrice,
+        maxPrice,
+      });
+    }
+
+    return await this.paginationProvider.paginateQueryBuilder(
+      pagination,
+      queryBuilder,
+    );
+  }
+
+  public async updateStatus(id: string, status: RoomStatus): Promise<Room> {
+    const room = await this.findOne(id);
+
+    // Kiểm tra logic nghiệp vụ
+    if (status === RoomStatus.ACTIVE) {
+      // Kiểm tra xem có booking nào đang check-in không
+      const activeBooking = await this.bookingRepository.findOne({
+        where: {
+          room: { id },
+          bookingStatus: In([BookingStatus.CheckedIn]),
+        },
+      });
+
+      if (activeBooking) {
+        throw new BadRequestException(
+          'Không thể chuyển phòng sang trạng thái trống. Phòng hiện đang có khách ở.',
+        );
+      }
+    }
+
+    room.roomStatus = status;
+    return await this.roomRepository.save(room);
   }
 }

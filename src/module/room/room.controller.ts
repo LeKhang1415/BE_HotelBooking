@@ -24,16 +24,23 @@ export class RoomController {
   }
 
   @Auth(AuthType.None)
-  @Get()
-  async findAll(@Query() getRoomDto: GetRoomDto) {
-    return this.roomService.findAll(getRoomDto);
+  @Get(`{/:typeRoomId}`)
+  async findAll(
+    @Param('typeRoomId') typeRoomId: string,
+    @Query() getRoomDto: GetRoomDto,
+  ) {
+    return this.roomService.findAll(typeRoomId, getRoomDto);
   }
 
   @Auth(AuthType.None)
-  @Get('available')
+  @Get('available{/:typeRoomId}')
   async findAvailableRoomsInTime(
+    @Param('typeRoomId') typeRoomId: string,
     @Query() findAvailableRoomDto: FindAvailableRoomDto,
   ) {
-    return this.roomService.findAvailableRoomsInTime(findAvailableRoomDto);
+    return this.roomService.findAvailableRoomsInTime(
+      typeRoomId,
+      findAvailableRoomDto,
+    );
   }
 }

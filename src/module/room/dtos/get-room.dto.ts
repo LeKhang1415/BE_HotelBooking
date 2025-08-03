@@ -1,25 +1,27 @@
-import { IsEnum, IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsIn, IsNumber, IsOptional, Min } from 'class-validator';
 import { RoomStatus } from '../enums/room-status.enum';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 import { IntersectionType } from '@nestjs/mapped-types';
 
 class RoomBaseDto {
   @IsOptional()
-  @IsString()
-  typeRoomId?: string;
-
-  @IsOptional()
   @IsEnum(RoomStatus)
   status?: RoomStatus;
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   minPrice?: number;
 
   @IsOptional()
   @IsNumber()
+  @Min(0)
   maxPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  numberOfPeople?: number;
 
   @IsOptional()
   @IsIn(['hour', 'day'])

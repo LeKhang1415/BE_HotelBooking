@@ -108,28 +108,43 @@ export class RoomService {
     return room;
   }
 
-  public async findAll(getRoomDto: GetRoomDto): Promise<Paginated<Room>> {
-    const { typeRoomId, status, minPrice, maxPrice, priceType, ...pagination } =
-      getRoomDto;
+  public async findAll(
+    typeRoomId: string,
+    getRoomDto: GetRoomDto,
+  ): Promise<Paginated<Room>> {
+    const {
+      status,
+      minPrice,
+      maxPrice,
+      priceType,
+      numberOfPeople,
+      ...pagination
+    } = getRoomDto;
 
-    const queryBuilder = this.roomRepository
+    let queryBuilder = this.roomRepository
       .createQueryBuilder('room')
       .leftJoinAndSelect('room.typeRoom', 'typeRoom');
 
     if (typeRoomId) {
-      queryBuilder.andWhere('room.typeRoomId =:typeRoomId', { typeRoomId });
+      queryBuilder.andWhere('typeRoom.id =:typeRoomId', { typeRoomId });
     }
 
     if (status) {
       queryBuilder.andWhere('room.roomStatus =:status', { status });
     }
 
-    if (minPrice && maxPrice && priceType) {
+    if (minPrice != null && maxPrice != null && priceType) {
       const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
 
       queryBuilder.andWhere(`${priceField} BETWEEN :minPrice AND :maxPrice`, {
         minPrice,
         maxPrice,
+      });
+    }
+
+    if (numberOfPeople != null) {
+      queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
+        numberOfPeople,
       });
     }
 
@@ -140,15 +155,16 @@ export class RoomService {
   }
 
   public async findAvailableRoomsInTime(
+    typeRoomId: string,
     findAvailableRoomDto: FindAvailableRoomDto,
   ): Promise<Paginated<Room>> {
     const {
       startTime,
       endTime,
-      typeRoomId,
       minPrice,
       maxPrice,
       priceType,
+      numberOfPeople,
       ...pagination
     } = findAvailableRoomDto;
 
@@ -174,22 +190,27 @@ export class RoomService {
       .leftJoinAndSelect('room.typeRoom', 'typeRoom')
       .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE });
 
-    if (conflictingBookings.length > 0) {
-      queryBuilder.andWhere('room.id NOT IN (...:unavailableRoomIds)', {
+    if (unavailableRoomIds.length > 0) {
+      queryBuilder.andWhere('room.id NOT IN (:...unavailableRoomIds)', {
         unavailableRoomIds,
       });
     }
 
     if (typeRoomId) {
-      queryBuilder.andWhere('room.typeRoom.id = :typeRoomId', { typeRoomId });
+      queryBuilder.andWhere('typeRoom.id = :typeRoomId', { typeRoomId });
     }
 
-    if (minPrice && maxPrice && priceType) {
+    if (minPrice != null && maxPrice != null && priceType) {
       const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
 
       queryBuilder.andWhere(`${priceField} BETWEEN :minPrice AND :maxPrice`, {
         minPrice,
         maxPrice,
+      });
+    }
+    if (numberOfPeople != null) {
+      queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
+        numberOfPeople,
       });
     }
 

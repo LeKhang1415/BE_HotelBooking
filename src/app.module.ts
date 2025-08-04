@@ -17,6 +17,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthenticationGuard } from './guards/authentication.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { PaginationModule } from './common/pagination/pagination.module';
+import { UploadsModule } from './module/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { PaginationModule } from './common/pagination/pagination.module';
     ConfigModule.forFeature(jwtConfig),
     JwtModule.registerAsync(jwtConfig.asProvider()),
     PaginationModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [

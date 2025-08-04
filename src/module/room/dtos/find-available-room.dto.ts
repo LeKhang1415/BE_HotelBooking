@@ -1,11 +1,4 @@
-import {
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  IsDate,
-  Min,
-} from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsDate, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IntersectionType } from '@nestjs/mapped-types';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';

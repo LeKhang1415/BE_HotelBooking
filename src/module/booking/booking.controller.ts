@@ -27,6 +27,7 @@ export class BookingController {
     return this.bookingService.create(createBookingDto);
   }
 
+  @Roles(UserRole.Staff)
   @Get(`/:bookingId`)
   async findOne(@Param('bookingId') bookingId: string) {
     return await this.bookingService.findOne(bookingId);
@@ -62,8 +63,16 @@ export class BookingController {
     return this.bookingService.createMyBooking(createBookingDto);
   }
 
+  @Get('my-booking/:bookingId')
+  async findMyBooking(
+    @Param('bookingId') bookingId: string,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.findMyBooking(user.sub, bookingId);
+  }
+
   @Get('my-booking')
-  async getMyBooking(
+  async getMyAllBooking(
     @Query() getUserBookingDto: GetUserBookingDto,
     @User() user: UserInterface,
   ) {

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -89,6 +90,26 @@ export class BookingService {
     });
 
     return await this.bookingRepository.save(booking);
+  }
+
+  public async findMyBooking(
+    userId: string,
+    bookingId: string,
+  ): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['user'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy booking');
+    }
+
+    if (booking?.user?.id !== userId || booking.user === null) {
+      throw new ForbiddenException('Bạn không có quyền xem booking này');
+    }
+
+    return booking;
   }
 
   public async createMyBooking(

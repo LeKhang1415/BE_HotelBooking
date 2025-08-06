@@ -6,11 +6,13 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from './entities/booking.entity';
 import { Room } from '../room/entities/room.entity';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Repository } from 'typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateBookingDto } from './dtos/create-booking.dto';
 import { RoomService } from '../room/room.service';
 import { BookingStatus } from './enums/bookingStatus';
+import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
+import { GetUserBookingDto } from './dtos/get-user-booking.dto';
 
 @Injectable()
 export class BookingService {
@@ -75,5 +77,26 @@ export class BookingService {
     });
 
     return await this.bookingRepository.save(booking);
+  }
+
+  public async getUserBooking(
+    userId: string,
+    getUserBookingDto: GetUserBookingDto,
+  ): Promise<Paginated<Booking>> {
+    const { status, ...pagination } = getUserBookingDto;
+
+    const where: FindOptionsWhere<Booking> = { user: { id: userId } };
+
+    if (status) {
+      where.bookingStatus = status;
+    }
+
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.bookingRepository,
+      where,
+      { createdDate: 'ASC' },
+      ['room', 'room.typeRoom'],
+    );
   }
 }

@@ -6,18 +6,17 @@ import {
   IsNumber,
   Min,
   IsOptional,
+  IsDate,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { TypeBooking } from '../enums/typeBooking';
 
 export class CreateBookingDto {
-  @IsNotEmpty()
-  @IsDateString()
-  startTime: string;
+  @IsDate()
+  startTime: Date;
 
-  @IsNotEmpty()
-  @IsDateString()
-  endTime: string;
+  @IsDate()
+  endTime: Date;
 
   @IsEnum(TypeBooking)
   bookingType: TypeBooking;
@@ -31,5 +30,5 @@ export class CreateBookingDto {
 
   @IsOptional()
   @IsUUID()
-  userId?: string; // Optional for guest bookings
+  userId?: string; // Optional
 }

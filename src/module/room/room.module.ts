@@ -16,5 +16,6 @@ import { Booking } from '../booking/entities/booking.entity';
     TypeRoomModule,
     PaginationModule,
   ],
+  exports: [RoomService],
 })
 export class RoomModule {}

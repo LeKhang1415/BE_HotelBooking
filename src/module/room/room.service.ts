@@ -168,6 +168,19 @@ export class RoomService {
       ...pagination
     } = findAvailableRoomDto;
 
+    // Validate thời gian
+    if (startTime >= endTime) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu phải trước thời gian kết thúc',
+      );
+    }
+
+    if (startTime < new Date()) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+      );
+    }
+
     const conflictingBookings = await this.bookingRepository
       .createQueryBuilder('booking')
       .select('booking.room.id', 'roomId')
@@ -218,6 +231,47 @@ export class RoomService {
       pagination,
       queryBuilder,
     );
+  }
+
+  public async isRoomAvailable(
+    roomId: string,
+    startTime: Date,
+    endTime: Date,
+    excludeBookingId?: string,
+  ): Promise<boolean> {
+    // Validate thời gian
+    if (startTime >= endTime) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu phải trước thời gian kết thúc',
+      );
+    }
+
+    if (startTime < new Date()) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+      );
+    }
+
+    let query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.room.id = :roomId', { roomId })
+      .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
+        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
+      })
+      .andWhere(
+        'booking.startTime < :endTime AND booking.endTime > :startTime',
+        { startTime, endTime },
+      );
+
+    // Loại trừ booking hiện tại khi update
+    if (excludeBookingId) {
+      query = query.andWhere('booking.bookingId != :excludeBookingId', {
+        excludeBookingId,
+      });
+    }
+
+    const conflictingBooking = await query.getOne();
+    return !conflictingBooking;
   }
 
   public async updateStatus(id: string, status: RoomStatus): Promise<Room> {

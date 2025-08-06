@@ -12,6 +12,7 @@ import { BookingStatus } from '../enums/bookingStatus';
 import { User } from 'src/module/users/entities/user.entity';
 import { Room } from 'src/module/room/entities/room.entity';
 import { Review } from 'src/module/reviews/entities/review.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity()
 export class Booking {
@@ -24,10 +25,10 @@ export class Booking {
   @Column({ type: 'timestamp', nullable: false })
   endTime: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamp', nullable: true })
   actualCheckIn?: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamp', nullable: true })
   actualCheckOut?: Date;
 
   @Column({ type: 'enum', enum: TypeBooking })
@@ -62,8 +63,10 @@ export class Booking {
   review: Review;
 
   @CreateDateColumn()
+  @Exclude()
   createdDate: Date;
 
   @UpdateDateColumn()
+  @Exclude()
   updateDate: Date;
 }

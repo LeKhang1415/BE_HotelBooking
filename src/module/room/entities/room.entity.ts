@@ -57,5 +57,6 @@ export class Room {
   updateDate: Date;
 
   @DeleteDateColumn()
+  @Exclude()
   deleteDate: Date;
 }

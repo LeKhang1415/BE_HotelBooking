@@ -1,5 +1,4 @@
 import { IsIn, IsNumber, IsOptional, IsDate, Min } from 'class-validator';
-import { Type } from 'class-transformer';
 import { IntersectionType } from '@nestjs/mapped-types';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 
@@ -23,11 +22,9 @@ class FindAvailableRoomBaseDto {
   @Min(1)
   numberOfPeople?: number;
 
-  @Type(() => Date)
   @IsDate()
   startTime: Date;
 
-  @Type(() => Date)
   @IsDate()
   endTime: Date;
 }

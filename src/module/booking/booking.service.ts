@@ -13,14 +13,19 @@ import { RoomService } from '../room/room.service';
 import { BookingStatus } from './enums/bookingStatus';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { GetUserBookingDto } from './dtos/get-user-booking.dto';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class BookingService {
   constructor(
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
+
     @InjectRepository(Room)
     private readonly roomRepository: Repository<Room>,
+
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
 
     private readonly paginationProvider: PaginationProvider,
 
@@ -72,8 +77,67 @@ export class BookingService {
       bookingType,
       numberOfGuest,
       bookingStatus: BookingStatus.Unpaid,
-      room: { id: roomId },
+      room,
       ...(userId && { user: { id: userId } }),
+    });
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async createMyBooking(
+    createBookingDto: CreateBookingDto,
+  ): Promise<Booking> {
+    const { roomId, startTime, endTime, bookingType, numberOfGuest, userId } =
+      createBookingDto;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
+
+    // Validate thời gian
+    if (startTime >= endTime) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu phải trước thời gian kết thúc',
+      );
+    }
+
+    if (startTime < new Date()) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+      );
+    }
+
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId },
+      relations: ['typeRoom'],
+    });
+
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng');
+    }
+    // Kiểm tra phòng có khả dụng không
+    const isAvailable = await this.roomService.isRoomAvailable(
+      roomId,
+      startTime,
+      endTime,
+    );
+
+    if (!isAvailable) {
+      throw new BadRequestException(
+        'Room is not available for the selected time period',
+      );
+    }
+
+    // Tạo booking
+    const booking = this.bookingRepository.create({
+      startTime,
+      endTime,
+      bookingType,
+      numberOfGuest,
+      bookingStatus: BookingStatus.Unpaid,
+      room,
+      user,
     });
 
     return await this.bookingRepository.save(booking);
@@ -84,6 +148,11 @@ export class BookingService {
     getUserBookingDto: GetUserBookingDto,
   ): Promise<Paginated<Booking>> {
     const { status, ...pagination } = getUserBookingDto;
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy người dùng');
+    }
 
     const where: FindOptionsWhere<Booking> = { user: { id: userId } };
 
@@ -98,5 +167,68 @@ export class BookingService {
       { createdDate: 'ASC' },
       ['room', 'room.typeRoom'],
     );
+  }
+
+  public async cancelBooking(bookingId: string): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['room'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy thông tin đặt phòng');
+    }
+
+    if (booking.bookingStatus === BookingStatus.Completed) {
+      throw new BadRequestException('Không thể hủy vì đặt phòng đã hoàn tất');
+    }
+
+    if (booking.actualCheckIn) {
+      throw new BadRequestException('Không thể hủy vì khách đã nhận phòng');
+    }
+
+    booking.bookingStatus = BookingStatus.Cancelled;
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async checkIn(bookingId: string): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['room', 'user'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy thông tin đặt phòng');
+    }
+
+    if (
+      booking.bookingStatus === BookingStatus.Cancelled ||
+      booking.bookingStatus === BookingStatus.Rejected
+    ) {
+      throw new BadRequestException('Đặt phòng đã bị hủy hoặc từ chối');
+    }
+
+    if (booking.actualCheckIn) {
+      throw new BadRequestException('Khách đã nhận phòng trước đó');
+    }
+
+    const now = new Date();
+
+    // Có thể check-in sớm 30 phút
+    const earliestCheckIn = new Date(
+      booking.startTime.getTime() - 30 * 60 * 1000,
+    );
+
+    if (now < earliestCheckIn) {
+      throw new BadRequestException(
+        'Chưa đến thời gian nhận phòng (có thể nhận phòng sớm tối đa 30 phút)',
+      );
+    }
+
+    booking.actualCheckIn = now;
+    booking.bookingStatus = BookingStatus.CheckedIn;
+
+    return await this.bookingRepository.save(booking);
   }
 }

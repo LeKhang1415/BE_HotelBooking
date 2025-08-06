@@ -1,14 +1,11 @@
 import {
   IsEnum,
-  IsNotEmpty,
   IsUUID,
-  IsDateString,
   IsNumber,
   Min,
   IsOptional,
   IsDate,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { TypeBooking } from '../enums/typeBooking';
 
 export class CreateBookingDto {

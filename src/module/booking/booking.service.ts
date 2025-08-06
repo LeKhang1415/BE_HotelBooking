@@ -6,7 +6,12 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from './entities/booking.entity';
 import { Room } from '../room/entities/room.entity';
-import { FindOptionsWhere, Repository } from 'typeorm';
+import {
+  Between,
+  FindOptionsOrder,
+  FindOptionsWhere,
+  Repository,
+} from 'typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateBookingDto } from './dtos/create-booking.dto';
 import { RoomService } from '../room/room.service';
@@ -14,6 +19,8 @@ import { BookingStatus } from './enums/bookingStatus';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { GetUserBookingDto } from './dtos/get-user-booking.dto';
 import { User } from '../users/entities/user.entity';
+import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
+import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
 
 @Injectable()
 export class BookingService {
@@ -169,7 +176,7 @@ export class BookingService {
     );
   }
 
-  public async cancelBooking(bookingId: string): Promise<Booking> {
+  public async rejectBooking(bookingId: string): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
       relations: ['room'],
@@ -187,9 +194,95 @@ export class BookingService {
       throw new BadRequestException('Không thể hủy vì khách đã nhận phòng');
     }
 
+    booking.bookingStatus = BookingStatus.Rejected;
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async findOne(id: string): Promise<Booking> {
+    const room = await this.bookingRepository.findOne({
+      where: { bookingId: id },
+      relations: ['room', 'user'],
+    });
+
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng');
+    }
+
+    return room;
+  }
+
+  public async findBookingByStatus(
+    getBookingByStatusDto: GetBookingByStatusDto,
+  ): Promise<Paginated<Booking>> {
+    const { status, ...pagination } = getBookingByStatusDto;
+
+    const where = {
+      bookingStatus: status,
+    };
+    const relations = ['user', 'room'];
+    const order: FindOptionsOrder<Booking> = { bookingDate: 'DESC' };
+
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.bookingRepository,
+      where,
+      order,
+      relations,
+    );
+  }
+
+  public async cancelMyBooking(
+    userId: string,
+    bookingId: string,
+  ): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: {
+        bookingId,
+        user: { id: userId }, // đảm bảo booking thuộc về người dùng
+      },
+      relations: ['room', 'user'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy thông tin đặt phòng của bạn');
+    }
+
+    if (booking.bookingStatus === BookingStatus.Completed) {
+      throw new BadRequestException('Không thể hủy vì đặt phòng đã hoàn tất');
+    }
+
+    if (booking.actualCheckIn) {
+      throw new BadRequestException('Không thể hủy vì bạn đã nhận phòng');
+    }
+
     booking.bookingStatus = BookingStatus.Cancelled;
 
     return await this.bookingRepository.save(booking);
+  }
+
+  public async findBookingToday(
+    paginationQueryDto: PaginationQueryDto,
+  ): Promise<Paginated<Booking>> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const where = {
+      startTime: Between(today, tomorrow),
+    };
+
+    const relations = ['room', 'user'];
+
+    return await this.paginationProvider.paginateQuery(
+      paginationQueryDto,
+      this.bookingRepository,
+      where,
+      {},
+      relations,
+    );
   }
 
   public async checkIn(bookingId: string): Promise<Booking> {

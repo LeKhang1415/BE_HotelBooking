@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
-import { In, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateRoomDto } from './dtos/create-room.dto';
@@ -87,6 +87,11 @@ export class RoomService {
       }
 
       room.typeRoom = typeRoom;
+    }
+
+    // Nếu có thay đổi status thì kiểm tra điều kiện
+    if (updateRoomDto.status && updateRoomDto.status !== room.roomStatus) {
+      await this.validateStatusChange(id, updateRoomDto.status);
     }
 
     // Cập nhật các trường khác
@@ -274,27 +279,43 @@ export class RoomService {
     return !conflictingBooking;
   }
 
-  public async updateStatus(id: string, status: RoomStatus): Promise<Room> {
-    const room = await this.findOne(id);
-
-    // Kiểm tra logic nghiệp vụ
-    if (status === RoomStatus.ACTIVE) {
-      // Kiểm tra xem có booking nào đang check-in không
+  private async validateStatusChange(
+    roomId: string,
+    newStatus: RoomStatus,
+  ): Promise<void> {
+    // Nếu muốn chuyển sang MAINTENANCE hoặc INACTIVE
+    if ([RoomStatus.MAINTENANCE, RoomStatus.INACTIVE].includes(newStatus)) {
+      // Kiểm tra phòng đang có khách ở (checked in)
       const activeBooking = await this.bookingRepository.findOne({
         where: {
-          room: { id },
+          room: { id: roomId },
           bookingStatus: In([BookingStatus.CheckedIn]),
         },
       });
 
       if (activeBooking) {
         throw new BadRequestException(
-          'Không thể chuyển phòng sang trạng thái trống. Phòng hiện đang có khách ở.',
+          `Không thể chuyển phòng sang trạng thái "${newStatus}". Phòng hiện đang có khách ở.`,
+        );
+      }
+
+      // Kiểm tra các booking trong tương lai (các trạng thái còn hiệu lực)
+      const futureBookings = await this.bookingRepository.find({
+        where: {
+          room: { id: roomId },
+          bookingStatus: In([
+            BookingStatus.Unpaid, // Chưa thanh toán nhưng booking còn hiệu lực
+            BookingStatus.Paid, // Đã thanh toán, chắc chắn sẽ đến
+          ]),
+          startTime: MoreThan(new Date()), // Booking có ngày check-in sau hiện tại
+        },
+      });
+
+      if (futureBookings.length > 0) {
+        throw new BadRequestException(
+          `Không thể chuyển phòng sang trạng thái "${newStatus}". Phòng có ${futureBookings.length} booking trong tương lai.`,
         );
       }
     }
-
-    room.roomStatus = status;
-    return await this.roomRepository.save(room);
   }
 }

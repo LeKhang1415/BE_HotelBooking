@@ -11,13 +11,11 @@ import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
-  @Auth(AuthType.None)
   @Post()
   async create(@Body() createRoomDto: CreateRoomDto) {
     return this.roomService.create(createRoomDto);
   }
 
-  @Auth(AuthType.None)
   @Post(':id')
   async update(@Param('id') id: string, @Body() updateRoomDto: UpdateRoomDto) {
     return this.roomService.update(id, updateRoomDto);
@@ -32,7 +30,11 @@ export class RoomController {
     return this.roomService.findAll(typeRoomId, getRoomDto);
   }
 
-  @Auth(AuthType.None)
+  @Get(`/:roomId`)
+  async findOne(@Param('roomId') roomId: string) {
+    return this.roomService.findOne(roomId);
+  }
+
   @Get('available{/:typeRoomId}')
   async findAvailableRoomsInTime(
     @Param('typeRoomId') typeRoomId: string,

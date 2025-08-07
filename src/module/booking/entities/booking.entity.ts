@@ -3,6 +3,7 @@ import {
   CreateDateColumn,
   Entity,
   ManyToOne,
+  OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
@@ -13,6 +14,7 @@ import { User } from 'src/module/users/entities/user.entity';
 import { Room } from 'src/module/room/entities/room.entity';
 import { Review } from 'src/module/reviews/entities/review.entity';
 import { Exclude } from 'class-transformer';
+import { Payment } from 'src/module/payment/entities/payment.entity';
 
 @Entity()
 export class Booking {
@@ -55,6 +57,12 @@ export class Booking {
     onUpdate: 'CASCADE',
   })
   room: Room;
+
+  @OneToMany(() => Payment, (payment) => payment.booking, {
+    onDelete: 'SET NULL',
+    onUpdate: 'CASCADE',
+  })
+  payments: Payment[];
 
   @OneToOne(() => Review, (review) => review.booking, {
     onDelete: 'SET NULL',

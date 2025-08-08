@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
 import { Booking } from '../booking/entities/booking.entity';
+import { UploadsModule } from '../uploads/uploads.module';
 
 @Module({
   controllers: [RoomController],
@@ -15,6 +16,7 @@ import { Booking } from '../booking/entities/booking.entity';
     TypeOrmModule.forFeature([Room, TypeRoom, Booking]),
     TypeRoomModule,
     PaginationModule,
+    UploadsModule,
   ],
   exports: [RoomService],
 })

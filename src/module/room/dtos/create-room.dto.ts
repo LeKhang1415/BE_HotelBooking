@@ -21,9 +21,5 @@ export class CreateRoomDto {
 
   @IsOptional()
   @IsString()
-  image?: string;
-
-  @IsOptional()
-  @IsString()
   facilities?: string;
 }

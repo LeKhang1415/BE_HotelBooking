@@ -30,8 +30,8 @@ export class Room {
   @Column({ type: 'text' })
   interior: string;
 
-  @Column({ type: 'text' })
-  image: string;
+  @Column({ type: 'text', nullable: true })
+  image?: string;
 
   @Column({ type: 'text' })
   facilities: string;

@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { CreateRoomDto } from './dtos/create-room.dto';
 import { Auth } from 'src/decorators/auth.decorator';
 import { AuthType } from '../auth/enums/auth-type.enum';
@@ -6,19 +15,29 @@ import { RoomService } from './room.service';
 import { UpdateRoomDto } from './dtos/update-room.dto';
 import { GetRoomDto } from './dtos/get-room.dto';
 import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('room')
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
   @Post()
-  async create(@Body() createRoomDto: CreateRoomDto) {
-    return this.roomService.create(createRoomDto);
+  @UseInterceptors(FileInterceptor('image'))
+  async create(
+    @Body() createRoomDto: CreateRoomDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.roomService.create(createRoomDto, file);
   }
 
   @Post(':id')
-  async update(@Param('id') id: string, @Body() updateRoomDto: UpdateRoomDto) {
-    return this.roomService.update(id, updateRoomDto);
+  @UseInterceptors(FileInterceptor('image'))
+  async update(
+    @Param('id') id: string,
+    @Body() updateRoomDto: UpdateRoomDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.roomService.update(id, updateRoomDto, file);
   }
 
   @Auth(AuthType.None)

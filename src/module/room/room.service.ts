@@ -16,6 +16,7 @@ import { RoomStatus } from './enums/room-status.enum';
 import { Booking } from '../booking/entities/booking.entity';
 import { BookingStatus } from '../booking/enums/bookingStatus';
 import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
+import { UploadsService } from '../uploads/uploads.service';
 
 @Injectable()
 export class RoomService {
@@ -30,9 +31,14 @@ export class RoomService {
     private readonly bookingRepository: Repository<Booking>,
 
     private readonly paginationProvider: PaginationProvider,
+
+    private readonly uploadsService: UploadsService,
   ) {}
 
-  public async create(createRoomDto: CreateRoomDto): Promise<Room> {
+  public async create(
+    createRoomDto: CreateRoomDto,
+    file?: Express.Multer.File,
+  ): Promise<Room> {
     // Kiểm tra xem tên phòng đã tồn tại chưa
     const existingRoom = await this.roomRepository.findOne({
       where: { name: createRoomDto.name },
@@ -51,15 +57,29 @@ export class RoomService {
       throw new NotFoundException('Không tìm thấy loại phòng');
     }
 
+    let imageUrl: string | undefined = undefined;
+
+    // Nếu có file thì upload lên Cloudinary
+    if (file) {
+      const uploadResult =
+        await this.uploadsService.uploadFileToCloudinary(file);
+      imageUrl = uploadResult.path; // Gán lại cho biến imageUrl đã khai báo
+    }
+
     const room = this.roomRepository.create({
       ...createRoomDto,
       typeRoom: { id: createRoomDto.typeRoomId },
+      image: imageUrl,
     });
 
     return await this.roomRepository.save(room);
   }
 
-  public async update(id: string, updateRoomDto: UpdateRoomDto): Promise<Room> {
+  public async update(
+    id: string,
+    updateRoomDto: UpdateRoomDto,
+    file?: Express.Multer.File,
+  ): Promise<Room> {
     const room = await this.findOne(id);
 
     // Nếu có thay đổi tên phòng thì kiểm tra trùng lặp
@@ -93,9 +113,28 @@ export class RoomService {
     if (updateRoomDto.status && updateRoomDto.status !== room.roomStatus) {
       await this.validateStatusChange(id, updateRoomDto.status);
     }
+    // Xử lý upload file mới nếu có
+    let newImageUrl: string | undefined = undefined;
+
+    if (file) {
+      try {
+        // Upload file mới lên Cloudinary
+        const uploadResult =
+          await this.uploadsService.uploadFileToCloudinary(file);
+        newImageUrl = uploadResult.path;
+      } catch (uploadError) {
+        throw new BadRequestException(
+          'Lỗi khi upload file: ' + uploadError.message,
+        );
+      }
+    }
 
     // Cập nhật các trường khác
-    Object.assign(room, updateRoomDto);
+    Object.assign(room, {
+      ...updateRoomDto,
+      // Chỉ update image nếu có file mới được upload
+      ...(newImageUrl && { image: newImageUrl }),
+    });
 
     return await this.roomRepository.save(room);
   }

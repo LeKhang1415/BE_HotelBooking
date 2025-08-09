@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsDate,
 } from 'class-validator';
-import { TypeBooking } from '../enums/typeBooking';
+import { StayType } from '../enums/stay-type';
 
 export class CreateBookingDto {
   @IsDate()
@@ -15,8 +15,8 @@ export class CreateBookingDto {
   @IsDate()
   endTime: Date;
 
-  @IsEnum(TypeBooking)
-  bookingType: TypeBooking;
+  @IsEnum(StayType)
+  stayType: StayType;
 
   @IsNumber()
   @Min(1)

@@ -16,7 +16,7 @@ import {
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateBookingDto } from './dtos/create-booking.dto';
 import { RoomService } from '../room/room.service';
-import { BookingStatus } from './enums/bookingStatus';
+import { BookingStatus } from './enums/booking-status';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { GetUserBookingDto } from './dtos/get-user-booking.dto';
 import { User } from '../users/entities/user.entity';
@@ -41,7 +41,7 @@ export class BookingService {
   ) {}
 
   public async create(createBookingDto: CreateBookingDto): Promise<Booking> {
-    const { roomId, startTime, endTime, bookingType, numberOfGuest, userId } =
+    const { roomId, startTime, endTime, stayType, numberOfGuest, userId } =
       createBookingDto;
 
     // Validate thời gian
@@ -82,7 +82,7 @@ export class BookingService {
     const booking = this.bookingRepository.create({
       startTime,
       endTime,
-      bookingType,
+      stayType,
       numberOfGuest,
       bookingStatus: BookingStatus.Unpaid,
       room,
@@ -115,7 +115,7 @@ export class BookingService {
   public async createMyBooking(
     createBookingDto: CreateBookingDto,
   ): Promise<Booking> {
-    const { roomId, startTime, endTime, bookingType, numberOfGuest, userId } =
+    const { roomId, startTime, endTime, stayType, numberOfGuest, userId } =
       createBookingDto;
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -161,7 +161,7 @@ export class BookingService {
     const booking = this.bookingRepository.create({
       startTime,
       endTime,
-      bookingType,
+      stayType,
       numberOfGuest,
       bookingStatus: BookingStatus.Unpaid,
       room,

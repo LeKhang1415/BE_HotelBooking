@@ -5,5 +5,4 @@ export enum BookingStatus {
   Completed = 'completed', // Hoàn thành (đã check-out)
   Cancelled = 'cancelled', // Đã hủy bởi khách
   Rejected = 'rejected', // Bị từ chối bởi admin
-  NoShow = 'no_show', // Không đến
 }

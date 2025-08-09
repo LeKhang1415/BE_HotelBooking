@@ -10,7 +10,7 @@ import { Repository } from 'typeorm';
 import { Booking } from '../booking/entities/booking.entity';
 import { Room } from '../room/entities/room.entity';
 import { CreateReviewDto } from './dtos/create-review.dto';
-import { BookingStatus } from '../booking/enums/bookingStatus';
+import { BookingStatus } from '../booking/enums/booking-status';
 import { UpdateReviewDto } from './dtos/update-review.dto';
 import { GetReviewDto } from './dtos/get-review.dto';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';

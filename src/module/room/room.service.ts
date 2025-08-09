@@ -14,7 +14,7 @@ import { Paginated } from 'src/common/pagination/interfaces/paginated.interface'
 import { GetRoomDto } from './dtos/get-room.dto';
 import { RoomStatus } from './enums/room-status.enum';
 import { Booking } from '../booking/entities/booking.entity';
-import { BookingStatus } from '../booking/enums/bookingStatus';
+import { BookingStatus } from '../booking/enums/booking-status';
 import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 import { UploadsService } from '../uploads/uploads.service';
 

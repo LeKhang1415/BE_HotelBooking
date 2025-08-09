@@ -1,6 +1,7 @@
 import { Booking } from 'src/module/booking/entities/booking.entity';
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
@@ -8,27 +9,35 @@ import {
 } from 'typeorm';
 import { PaymentMethod } from '../enums/payment-method.enum';
 import { PaymentStatus } from '../enums/payment-status.enum';
+import { PaymentType } from '../enums/payment-type.enum';
 
 @Entity()
 export class Payment {
   @PrimaryGeneratedColumn('uuid')
   paymentId: string;
 
+  @Column({ unique: true })
+  paymentCode: string; // Mã thanh toán unique
+
   @Column()
   amount: number;
-
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  paymentDate: Date;
-  @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.Failed })
-  paymentStatus: PaymentStatus;
 
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
-  @ManyToOne(() => Booking, (booking) => booking.payments, {
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-  })
-  @JoinColumn({ name: 'bookingId' })
+  @Column({ type: 'datetime', nullable: true })
+  paidAt?: Date;
+
+  @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
+  status: PaymentStatus;
+
+  @Column({ type: 'enum', enum: PaymentType })
+  paymentType: PaymentType;
+
+  @ManyToOne(() => Booking, (booking) => booking.payments)
+  @JoinColumn({ name: 'booking_id' })
   booking: Booking;
+
+  @CreateDateColumn()
+  createdAt: Date;
 }

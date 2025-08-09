@@ -1,4 +1,4 @@
-export enum TypeBooking {
+export enum StayType {
   HOURLY = 'hourly',
   DAILY = 'daily',
 }

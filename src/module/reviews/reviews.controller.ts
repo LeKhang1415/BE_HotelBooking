@@ -27,7 +27,7 @@ export class ReviewController {
     @User() user: UserInterface,
     @Body() createReviewDto: CreateReviewDto,
   ) {
-    return this.reviewService.create(user.sub, createReviewDto);
+    return await this.reviewService.create(user.sub, createReviewDto);
   }
 
   @Get('room/:roomId')
@@ -35,7 +35,7 @@ export class ReviewController {
     @Param('roomId') roomId: string,
     @Query() getReviewDto: GetReviewDto,
   ) {
-    return this.reviewService.getReviewsByRoom(roomId, getReviewDto);
+    return await this.reviewService.getReviewsByRoom(roomId, getReviewDto);
   }
 
   @Get('my-reviews')
@@ -43,7 +43,7 @@ export class ReviewController {
     @User() user: UserInterface,
     @Query() getReviewDto: GetReviewDto,
   ) {
-    return this.reviewService.getReviewsByUser(user.sub, getReviewDto);
+    return await this.reviewService.getReviewsByUser(user.sub, getReviewDto);
   }
 
   @Post(':id')
@@ -52,23 +52,23 @@ export class ReviewController {
     @User() user: UserInterface,
     @Body() updateReviewDto: UpdateReviewDto,
   ) {
-    return this.reviewService.update(id, user.sub, updateReviewDto);
+    return await this.reviewService.update(id, user.sub, updateReviewDto);
   }
 
   @Delete(':id')
   async delete(@Param('id') id: string, @User() user: UserInterface) {
-    return this.reviewService.delete(id, user.sub);
+    return await this.reviewService.delete(id, user.sub);
   }
 
   @Get(':id')
   async getReview(@Param() id: string) {
-    return this.reviewService.findOne(id);
+    return await this.reviewService.findOne(id);
   }
 
   @Roles(UserRole.Staff)
   @Post(':id/toggle-status')
   async toggleReviewStatus(@Param('id') id: string) {
-    return this.reviewService.toggleReviewStatus(id);
+    return await this.reviewService.toggleReviewStatus(id);
   }
 
   @Auth(AuthType.None)
@@ -77,6 +77,6 @@ export class ReviewController {
     @Param('roomId') roomId: string,
     @Query() getReviewDto: GetReviewDto,
   ) {
-    return this.reviewService.getReviewsByRoom(roomId, getReviewDto);
+    return await this.reviewService.getReviewsByRoom(roomId, getReviewDto);
   }
 }

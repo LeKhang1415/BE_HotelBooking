@@ -8,13 +8,14 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { TypeBooking } from '../enums/typeBooking';
-import { BookingStatus } from '../enums/bookingStatus';
+import { StayType } from '../enums/stay-type';
+import { BookingStatus } from '../enums/booking-status';
 import { User } from 'src/module/users/entities/user.entity';
 import { Room } from 'src/module/room/entities/room.entity';
 import { Review } from 'src/module/reviews/entities/review.entity';
 import { Exclude } from 'class-transformer';
 import { Payment } from 'src/module/payment/entities/payment.entity';
+import { BookingType } from '../enums/booking-type';
 
 @Entity()
 export class Booking {
@@ -33,8 +34,11 @@ export class Booking {
   @Column({ type: 'timestamp', nullable: true })
   actualCheckOut?: Date;
 
-  @Column({ type: 'enum', enum: TypeBooking })
-  bookingType: TypeBooking;
+  @Column({ type: 'enum', enum: StayType })
+  stayType: StayType;
+
+  @Column({ type: 'enum', enum: BookingType, default: BookingType.ONLINE })
+  bookingType: BookingType;
 
   @Column({ type: 'enum', enum: BookingStatus, default: BookingStatus.Unpaid })
   bookingStatus: BookingStatus;
@@ -58,17 +62,20 @@ export class Booking {
   })
   room: Room;
 
-  @OneToMany(() => Payment, (payment) => payment.booking, {
-    onDelete: 'SET NULL',
-    onUpdate: 'CASCADE',
-  })
-  payments: Payment[];
-
   @OneToOne(() => Review, (review) => review.booking, {
     onDelete: 'SET NULL',
     onUpdate: 'CASCADE',
   })
   review: Review;
+
+  @OneToMany(() => Payment, (payment) => payment.booking, { cascade: true })
+  payments: Payment[];
+
+  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  totalAmount: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  extraCharges: number; // Phí phụ (trả phòng trễ, etc)
 
   @CreateDateColumn()
   @Exclude()

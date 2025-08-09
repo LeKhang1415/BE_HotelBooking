@@ -13,6 +13,10 @@ import { User } from 'src/decorators/user.decorator';
 import { UserInterface } from '../users/interfaces/user.interface';
 import { GetReviewDto } from './dtos/get-review.dto';
 import { UpdateReviewDto } from './dtos/update-review.dto';
+import { UserRole } from '../users/enum/user-role.enum';
+import { Roles } from 'src/decorators/roles.decorator';
+import { Auth } from 'src/decorators/auth.decorator';
+import { AuthType } from '../auth/enums/auth-type.enum';
 
 @Controller('reviews')
 export class ReviewController {
@@ -22,30 +26,57 @@ export class ReviewController {
   async create(
     @User() user: UserInterface,
     @Body() createReviewDto: CreateReviewDto,
-  ) {}
+  ) {
+    return this.reviewService.create(user.sub, createReviewDto);
+  }
 
   @Get('room/:roomId')
   async getReviewsByRoom(
     @Param('roomId') roomId: string,
     @Query() getReviewDto: GetReviewDto,
-  ) {}
+  ) {
+    return this.reviewService.getReviewsByRoom(roomId, getReviewDto);
+  }
 
   @Get('my-reviews')
   async getMyReviews(
     @User() user: UserInterface,
     @Query() getReviewDto: GetReviewDto,
-  ) {}
+  ) {
+    return this.reviewService.getReviewsByUser(user.sub, getReviewDto);
+  }
 
   @Post(':id')
   async update(
     @Param('id') id: string,
     @User() user: UserInterface,
     @Body() updateReviewDto: UpdateReviewDto,
-  ) {}
+  ) {
+    return this.reviewService.update(id, user.sub, updateReviewDto);
+  }
 
   @Delete(':id')
-  async delete(@Param('id') id: number, @User() user: UserInterface) {}
+  async delete(@Param('id') id: string, @User() user: UserInterface) {
+    return this.reviewService.delete(id, user.sub);
+  }
 
-  @Get('room/:roomId/stats')
-  async getRoomStats(@Param('roomId') roomId: string) {}
+  @Get(':id')
+  async getReview(@Param() id: string) {
+    return this.reviewService.findOne(id);
+  }
+
+  @Roles(UserRole.Staff)
+  @Post(':id/toggle-status')
+  async toggleReviewStatus(@Param('id') id: string) {
+    return this.reviewService.toggleReviewStatus(id);
+  }
+
+  @Auth(AuthType.None)
+  @Get('room/:roomId')
+  async getPublicReviewsByRoom(
+    @Param('roomId') roomId: string,
+    @Query() getReviewDto: GetReviewDto,
+  ) {
+    return this.reviewService.getReviewsByRoom(roomId, getReviewDto);
+  }
 }

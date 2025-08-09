@@ -345,4 +345,61 @@ export class BookingService {
 
     return await this.bookingRepository.save(booking);
   }
+
+  public async checkOut(bookingId: string): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['room', 'user'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy thông tin đặt phòng');
+    }
+
+    if (!booking.actualCheckIn) {
+      throw new BadRequestException('Khách chưa nhận phòng');
+    }
+
+    if (booking.actualCheckOut) {
+      throw new BadRequestException('Khách đã trả phòng trước đó');
+    }
+
+    if (
+      booking.bookingStatus === BookingStatus.Cancelled ||
+      booking.bookingStatus === BookingStatus.Rejected
+    ) {
+      throw new BadRequestException('Đặt phòng đã bị hủy hoặc từ chối');
+    }
+
+    const now = new Date();
+
+    booking.actualCheckOut = now;
+    booking.bookingStatus = BookingStatus.Completed;
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async markAsPaid(bookingId: string): Promise<Booking> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['room', 'user'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Không tìm thấy thông tin đặt phòng');
+    }
+
+    if (
+      booking.bookingStatus === BookingStatus.Cancelled ||
+      booking.bookingStatus === BookingStatus.Rejected
+    ) {
+      throw new BadRequestException(
+        'Không thể cập nhật trạng thái cho booking đã hủy/từ chối',
+      );
+    }
+
+    booking.bookingStatus = BookingStatus.Paid;
+
+    return await this.bookingRepository.save(booking);
+  }
 }

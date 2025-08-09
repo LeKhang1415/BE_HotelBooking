@@ -21,6 +21,6 @@ export class CreateReviewDto {
   comment?: string;
 
   @IsNotEmpty()
-  @IsInt()
-  bookingId: number; //để verify booking
+  @IsString()
+  bookingId: string; //để verify booking
 }

@@ -23,9 +23,6 @@ export class Review {
   @Column({ type: 'text', nullable: true })
   comment: string;
 
-  @Column({ type: 'json', nullable: true })
-  images: string[]; // Array URLs của ảnh review
-
   @ManyToOne(() => User, (user) => user.reviews, { eager: true })
   @JoinColumn({ name: 'user_id' })
   user: User;
@@ -33,6 +30,9 @@ export class Review {
   @ManyToOne(() => Room, (room) => room.reviews, { eager: true })
   @JoinColumn({ name: 'room_id' })
   room: Room;
+
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean; // Để ẩn/hiện review
 
   @ManyToOne(() => Booking, (booking) => booking.review, { eager: true })
   @JoinColumn({ name: 'booking_id' })

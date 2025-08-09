@@ -33,5 +33,5 @@ export class User {
   bookings?: Booking[];
 
   @OneToMany(() => Review, (review) => review.user)
-  review?: Review[];
+  reviews?: Review[];
 }

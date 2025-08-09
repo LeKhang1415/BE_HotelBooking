@@ -12,6 +12,7 @@ import {
 } from 'typeorm';
 import { RoomStatus } from '../enums/room-status.enum';
 import { Exclude } from 'class-transformer';
+import { Review } from 'src/module/reviews/entities/review.entity';
 
 @Entity()
 export class Room {
@@ -47,6 +48,9 @@ export class Room {
     onUpdate: 'CASCADE',
   })
   bookings: Booking[];
+
+  @OneToMany(() => Review, (review) => review.room)
+  reviews?: Review[];
 
   @CreateDateColumn()
   @Exclude()

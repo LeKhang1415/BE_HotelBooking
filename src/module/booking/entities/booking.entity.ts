@@ -34,7 +34,7 @@ export class Booking {
   @Column({ type: 'timestamp', nullable: true })
   actualCheckOut?: Date;
 
-  @Column({ type: 'enum', enum: StayType })
+  @Column({ type: 'enum', enum: StayType, nullable: true })
   stayType: StayType;
 
   @Column({ type: 'enum', enum: BookingType, default: BookingType.ONLINE })
@@ -71,10 +71,16 @@ export class Booking {
   @OneToMany(() => Payment, (payment) => payment.booking, { cascade: true })
   payments: Payment[];
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
   totalAmount: number;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    default: 0,
+    nullable: true,
+  })
   extraCharges: number; // Phí phụ (trả phòng trễ, etc)
 
   @CreateDateColumn()

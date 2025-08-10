@@ -4,6 +4,7 @@ import { ConfigType } from '@nestjs/config';
 import jwtConfig from 'src/config/jwt.config';
 import { User } from 'src/module/users/entities/user.entity';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
+import { Response } from 'express';
 
 @Injectable()
 export class GenerateTokenProvider {
@@ -55,5 +56,46 @@ export class GenerateTokenProvider {
       accessToken,
       refreshToken,
     };
+  }
+
+  // Phương thức generate token và set refreshToken vào cookie
+  public async generateTokenWithCookie(
+    user: User,
+    response: Response,
+  ): Promise<{ accessToken: string }> {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.signToken<Partial<JwtPayload>>(
+        user.id,
+        this.jwtConfiguration.accessTokenTtl,
+        {
+          email: user.email,
+          role: user.role,
+        },
+      ),
+
+      this.signToken(user.id, this.jwtConfiguration.refreshTokenTtl),
+    ]);
+
+    // Set refreshToken vào cookie
+    response.cookie('refreshToken', refreshToken, {
+      httpOnly: true, // Chỉ server mới có thể đọc được cookie
+      sameSite: 'strict', // Bảo vệ chống CSRF
+      maxAge: this.jwtConfiguration.refreshTokenTtl * 1000, // Convert giây sang millisecond
+      path: '/', // Cookie có hiệu lực trên toàn bộ domain
+    });
+
+    // Chỉ trả về accessToken, refreshToken được lưu trong cookie
+    return {
+      accessToken,
+    };
+  }
+
+  // Phương thức để clear refresh token cookie khi logout
+  public clearRefreshTokenCookie(response: Response): void {
+    response.clearCookie('refreshToken', {
+      httpOnly: true,
+      sameSite: 'strict',
+      path: '/',
+    });
   }
 }

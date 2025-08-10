@@ -25,7 +25,7 @@ export class Payment {
   @Column({ type: 'enum', enum: PaymentMethod })
   paymentMethod: PaymentMethod;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   paidAt?: Date;
 
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })

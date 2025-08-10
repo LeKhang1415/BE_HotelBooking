@@ -16,26 +16,14 @@ export class PaymentService {
   ) {}
 
   // Tạo payment cho online booking
-  async createOnlinePayment(
-    bookingId: string,
-    paymentMethod: PaymentMethod,
-  ): Promise<Payment> {}
+  async createOnlinePayment(bookingId: string, paymentMethod: PaymentMethod) {}
 
   // Tạo payment cho walk-in
-  async createWalkInPayment(
-    bookingId: string,
-    paymentMethod: PaymentMethod,
-  ): Promise<Payment> {}
+  async createWalkInPayment(bookingId: string, paymentMethod: PaymentMethod) {}
 
   // Tạo payment cho late checkout
-  async createLateCheckoutPayment(
-    bookingId: string,
-    extraHours: number,
-  ): Promise<Payment> {}
+  async createLateCheckoutPayment(bookingId: string, extraHours: number) {}
 
   // Calculate late checkout fee
-  async calculateLateCheckoutFee(
-    bookingId: string,
-    actualCheckOut: Date,
-  ): Promise<number> {}
+  async calculateLateCheckoutFee(bookingId: string, actualCheckOut: Date) {}
 }

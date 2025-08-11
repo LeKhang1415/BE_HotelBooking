@@ -1,14 +1,19 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   RequestTimeoutException,
 } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import { FindOptionsWhere, Like, Not, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { HashingProvider } from '../auth/providers/hashing.provider';
 import { CreateUserDto } from './dto/create-user.dto';
 import { instanceToPlain } from 'class-transformer';
+import { GetUserDto } from './dto/get-user.dto';
+import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
+import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -18,6 +23,8 @@ export class UsersService {
 
     // Inject HashingProvider
     private readonly hashingProvider: HashingProvider,
+
+    private readonly paginationProvider: PaginationProvider,
   ) {}
 
   public async create(createUserDto: CreateUserDto) {
@@ -72,5 +79,53 @@ export class UsersService {
       return null;
     }
     return user;
+  }
+
+  async getAllUser(getUserDto: GetUserDto): Promise<Paginated<User>> {
+    const { keyword, ...pagination } = getUserDto;
+
+    const where: FindOptionsWhere<User> = {
+      name: Like('%' + keyword + '%'),
+    };
+
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.usersRepository,
+      where,
+    );
+  }
+
+  async update(userId: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.findByID(userId);
+
+    if (!user) {
+      throw new NotFoundException(`Không tìm thấy người dùng với ID ${userId}`);
+    }
+
+    // Kiểm tra email đã tồn tại (nếu có thay đổi email)
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingUser = await this.usersRepository.findOne({
+        where: {
+          email: updateUserDto.email,
+          id: Not(userId), // loại trừ user hiện tại
+        },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('Email đã tồn tại');
+      }
+    }
+
+    // Hash password nếu có thay đổi
+    if (updateUserDto.password) {
+      updateUserDto.password = await this.hashingProvider.hashPassword(
+        updateUserDto.password,
+      );
+    }
+
+    // Cập nhật thông tin
+    Object.assign(user, updateUserDto);
+
+    return await this.usersRepository.save(user);
   }
 }

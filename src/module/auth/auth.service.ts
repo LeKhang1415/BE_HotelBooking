@@ -4,6 +4,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  NotFoundException,
   RequestTimeoutException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,7 +13,7 @@ import { HashingProvider } from './providers/hashing.provider';
 import { RegisterUserDto } from './dtos/register.dto';
 import { User } from '../users/entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { LogInUserDto } from './dtos/login.dto';
 import { GenerateTokenProvider } from './providers/generate-token.provider';
 import { Request, Response } from 'express';
@@ -20,6 +21,7 @@ import { JwtService } from '@nestjs/jwt';
 import jwtConfig from 'src/config/jwt.config';
 import { ConfigType } from '@nestjs/config';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { UpdateCurrentUserDto } from './dtos/update-current-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -189,5 +191,53 @@ export class AuthService {
   async logout(response: Response) {
     this.generateTokenProvider.clearRefreshTokenCookie(response);
     return { message: 'Đăng xuất thành công' };
+  }
+
+  async getCurrentUser(userId: string) {
+    const user = await this.usersService.findByID(userId);
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy user');
+    }
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
+  }
+
+  async updateCurrentUser(
+    userId: string,
+    updateCurrentUserDto: UpdateCurrentUserDto,
+  ) {
+    const user = await this.usersService.findByID(userId);
+
+    if (!user) {
+      throw new NotFoundException(`Không tìm thấy người dùng với ID ${userId}`);
+    }
+
+    // Kiểm tra email đã tồn tại (nếu có thay đổi email)
+    if (
+      updateCurrentUserDto.email &&
+      updateCurrentUserDto.email !== user.email
+    ) {
+      const existingUser = await this.usersRepository.findOne({
+        where: {
+          email: updateCurrentUserDto.email,
+          id: Not(userId), // loại trừ user hiện tại
+        },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('Email đã tồn tại');
+      }
+    }
+
+    // Cập nhật thông tin
+    Object.assign(user, updateCurrentUserDto);
+
+    return await this.usersRepository.save(user);
   }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
@@ -13,6 +14,9 @@ import { LogInUserDto } from './dtos/login.dto';
 import { Auth } from 'src/decorators/auth.decorator';
 import { AuthType } from './enums/auth-type.enum';
 import { Request, Response } from 'express';
+import { User } from 'src/decorators/user.decorator';
+import { UserInterface } from '../users/interfaces/user.interface';
+import { UpdateCurrentUserDto } from './dtos/update-current-user.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -52,5 +56,18 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) response: Response) {
     return this.authService.logout(response);
+  }
+
+  @Get('get-me')
+  async getCurrentUser(@User() user: UserInterface) {
+    return this.authService.getCurrentUser(user.sub);
+  }
+
+  @Post('update-me')
+  async updateCurrentUser(
+    @User() user: UserInterface,
+    @Body() updateCurrentUserDto: UpdateCurrentUserDto,
+  ) {
+    return this.authService.updateCurrentUser(user.sub, updateCurrentUserDto);
   }
 }

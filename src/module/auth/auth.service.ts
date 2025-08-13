@@ -44,10 +44,7 @@ export class AuthService {
     private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
   ) {}
 
-  public async handleRegister(
-    registerUserDto: RegisterUserDto,
-    response: Response,
-  ) {
+  async handleRegister(registerUserDto: RegisterUserDto, response: Response) {
     const existingUser = await this.usersService.checkUserExists(
       registerUserDto.email,
     );
@@ -91,7 +88,7 @@ export class AuthService {
     };
   }
 
-  public async handleLogIn(logInUserDto: LogInUserDto, response: Response) {
+  async handleLogIn(logInUserDto: LogInUserDto, response: Response) {
     const existingUser = await this.usersService.checkUserExists(
       logInUserDto.email,
     );
@@ -173,6 +170,7 @@ export class AuthService {
         accessToken,
         user: {
           id: user.id,
+          name: user.name,
           email: user.email,
           role: user.role,
         },

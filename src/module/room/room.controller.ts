@@ -41,12 +41,9 @@ export class RoomController {
   }
 
   @Auth(AuthType.None)
-  @Get(`{/:typeRoomId}`)
-  async findAll(
-    @Param('typeRoomId') typeRoomId: string,
-    @Query() getRoomDto: GetRoomDto,
-  ) {
-    return this.roomService.findAll(typeRoomId, getRoomDto);
+  @Get(``)
+  async findAll(@Query() getRoomDto: GetRoomDto) {
+    return this.roomService.findAll(getRoomDto);
   }
 
   @Get(`/:roomId`)

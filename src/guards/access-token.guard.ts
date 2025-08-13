@@ -38,8 +38,10 @@ export class AccessTokenGuard implements CanActivate {
         this.jwtConfiguration,
       );
     } catch (error) {
-      console.error(error);
-      throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Token đã hết hạn');
+      }
+      throw new UnauthorizedException('Token không hợp lệ');
     }
     return true;
   }

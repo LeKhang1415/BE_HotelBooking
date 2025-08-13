@@ -152,13 +152,11 @@ export class RoomService {
     return room;
   }
 
-  public async findAll(
-    typeRoomId: string,
-    getRoomDto: GetRoomDto,
-  ): Promise<Paginated<Room>> {
+  public async findAll(getRoomDto: GetRoomDto): Promise<Paginated<Room>> {
     const {
       status,
       minPrice,
+      typeRoomId,
       maxPrice,
       priceType,
       numberOfPeople,

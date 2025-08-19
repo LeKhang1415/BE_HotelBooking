@@ -47,6 +47,12 @@ export class TypeRoomController {
     return this.typeRoomService.findAll(getTypeRoomDto);
   }
 
+  @Auth(AuthType.None)
+  @Get('all')
+  async findAllWithoutPagination() {
+    return this.typeRoomService.findAllWithoutPagination();
+  }
+
   @Get(':id')
   @Auth(AuthType.None)
   findOne(@Param('id') id: string) {

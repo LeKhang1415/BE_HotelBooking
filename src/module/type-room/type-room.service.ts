@@ -106,4 +106,15 @@ export class TypeRoomService {
     await this.typeRoomRepository.softDelete(id);
     return { deleted: true, id };
   }
+
+  public async findAllWithoutPagination(): Promise<TypeRoom[]> {
+    const where: FindOptionsWhere<TypeRoom> = {
+      deleteAt: IsNull(),
+    };
+
+    return await this.typeRoomRepository.find({
+      where,
+      order: { sizeRoom: 'ASC' },
+    });
+  }
 }

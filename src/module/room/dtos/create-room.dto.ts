@@ -15,11 +15,9 @@ export class CreateRoomDto {
   @IsNumber()
   pricePerHour: number;
 
-  @IsOptional()
   @IsString()
-  interior?: string;
+  interior: string;
 
-  @IsOptional()
   @IsString()
-  facilities?: string;
+  facilities: string;
 }

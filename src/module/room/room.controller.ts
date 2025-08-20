@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UploadedFile,
@@ -46,8 +47,9 @@ export class RoomController {
     return this.roomService.findAll(getRoomDto);
   }
 
+  @Auth(AuthType.None)
   @Get(`/:roomId`)
-  async findOne(@Param('roomId') roomId: string) {
+  async findOne(@Param('roomId', new ParseUUIDPipe()) roomId: string) {
     return this.roomService.findOne(roomId);
   }
 

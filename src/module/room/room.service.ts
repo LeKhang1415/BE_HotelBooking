@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
-import { In, MoreThan, Repository } from 'typeorm';
+import { In, IsNull, MoreThan, Not, Repository } from 'typeorm';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateRoomDto } from './dtos/create-room.dto';
@@ -39,18 +39,21 @@ export class RoomService {
     createRoomDto: CreateRoomDto,
     file?: Express.Multer.File,
   ): Promise<Room> {
-    // Kiểm tra xem tên phòng đã tồn tại chưa
+    // Kiểm tra tên phòng chỉ trong các room chưa xóa
     const existingRoom = await this.roomRepository.findOne({
-      where: { name: createRoomDto.name },
+      where: {
+        name: createRoomDto.name,
+        deleteAt: IsNull(),
+      },
     });
 
     if (existingRoom) {
       throw new BadRequestException('Tên phòng đã tồn tại');
     }
 
-    // Kiểm tra xem loại phòng có tồn tại không
+    // Kiểm tra xem loại phòng có tồn tại không và loại phòng chỉ trong các record chưa xóa
     const typeRoom = await this.typeRoomRepository.findOne({
-      where: { id: createRoomDto.typeRoomId },
+      where: { id: createRoomDto.typeRoomId, deleteAt: IsNull() },
     });
 
     if (!typeRoom) {
@@ -85,7 +88,7 @@ export class RoomService {
     // Nếu có thay đổi tên phòng thì kiểm tra trùng lặp
     if (updateRoomDto.name && updateRoomDto.name !== room.name) {
       const existingRoom = await this.roomRepository.findOne({
-        where: { name: updateRoomDto.name },
+        where: { name: updateRoomDto.name, deleteAt: IsNull(), id: Not(id) },
       });
 
       if (existingRoom) {
@@ -99,7 +102,7 @@ export class RoomService {
       updateRoomDto.typeRoomId !== room.typeRoom.id
     ) {
       const typeRoom = await this.typeRoomRepository.findOne({
-        where: { id: updateRoomDto.typeRoomId },
+        where: { id: updateRoomDto.typeRoomId, deleteAt: IsNull() },
       });
 
       if (!typeRoom) {
@@ -141,7 +144,7 @@ export class RoomService {
 
   public async findOne(id: string): Promise<Room> {
     const room = await this.roomRepository.findOne({
-      where: { id },
+      where: { id, deleteAt: IsNull() },
       relations: ['typeRoom', 'bookings'],
     });
 
@@ -165,7 +168,9 @@ export class RoomService {
 
     let queryBuilder = this.roomRepository
       .createQueryBuilder('room')
-      .leftJoinAndSelect('room.typeRoom', 'typeRoom');
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .where('room.deleteAt IS NULL')
+      .andWhere('typeRoom.deleteAt IS NULL');
 
     if (typeRoomId) {
       queryBuilder.andWhere('typeRoom.id =:typeRoomId', { typeRoomId });
@@ -230,6 +235,7 @@ export class RoomService {
       .where('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
         cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
       })
+      .andWhere('room.deleteAt IS NULL')
       .andWhere(
         'booking.startTime < :endTime AND booking.endTime > :startTime',
         { startTime, endTime },
@@ -243,7 +249,9 @@ export class RoomService {
     let queryBuilder = this.roomRepository
       .createQueryBuilder('room')
       .leftJoinAndSelect('room.typeRoom', 'typeRoom')
-      .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE });
+      .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE })
+      .andWhere('room.deleteAt IS NULL')
+      .andWhere('typeRoom.deleteAt IS NULL');
 
     if (unavailableRoomIds.length > 0) {
       queryBuilder.andWhere('room.id NOT IN (:...unavailableRoomIds)', {
@@ -297,6 +305,7 @@ export class RoomService {
     let query = this.bookingRepository
       .createQueryBuilder('booking')
       .where('booking.room.id = :roomId', { roomId })
+      .andWhere('room.deleteAt IS NULL')
       .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
         cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
       })
@@ -314,6 +323,31 @@ export class RoomService {
 
     const conflictingBooking = await query.getOne();
     return !conflictingBooking;
+  }
+
+  public async remove(id: string): Promise<{ deleted: boolean; id: string }> {
+    const room = await this.findOne(id);
+
+    // Kiểm tra room có booking active không
+    const activeBooking = await this.bookingRepository.findOne({
+      where: {
+        room: { id: room.id },
+        bookingStatus: In([
+          BookingStatus.CheckedIn,
+          BookingStatus.Paid,
+          BookingStatus.Unpaid,
+        ]),
+      },
+    });
+
+    if (activeBooking) {
+      throw new BadRequestException(
+        'Không thể xóa phòng. Phòng này đang có hoặc sẽ có đặt phòng trong tương lai.',
+      );
+    }
+
+    await this.roomRepository.softDelete(id);
+    return { deleted: true, id };
   }
 
   private async validateStatusChange(

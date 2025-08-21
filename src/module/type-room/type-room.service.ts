@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { CreateTypeRoomDto } from './dtos/create-type-room.dto';
 import { TypeRoom } from './entities/type-room.entity';
-import { Between, FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { Between, FindOptionsWhere, IsNull, Not, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { GetTypeRoomDto } from './dtos/get-type-room.dto';
@@ -23,7 +23,7 @@ export class TypeRoomService {
 
   public async create(createTypeRoomDto: CreateTypeRoomDto): Promise<TypeRoom> {
     const existingTypeRoom = await this.typeRoomRepository.findOne({
-      where: { name: createTypeRoomDto.name },
+      where: { name: createTypeRoomDto.name, deleteAt: IsNull() },
     });
 
     if (existingTypeRoom) {
@@ -38,7 +38,10 @@ export class TypeRoomService {
     id: string,
     updateTypeRoomDto: UpdateTypeRoomDto,
   ): Promise<TypeRoom> {
-    const typeRoom = await this.typeRoomRepository.findOneBy({ id: id });
+    const typeRoom = await this.typeRoomRepository.findOneBy({
+      id: id,
+      deleteAt: IsNull(),
+    });
 
     if (!typeRoom) {
       throw new NotFoundException('Không tìm thấy loại phòng cần cập nhật.');
@@ -46,7 +49,11 @@ export class TypeRoomService {
 
     if (updateTypeRoomDto.name && updateTypeRoomDto.name !== typeRoom.name) {
       const existingTypeRoom = await this.typeRoomRepository.findOne({
-        where: { name: updateTypeRoomDto.name },
+        where: {
+          name: updateTypeRoomDto.name,
+          deleteAt: IsNull(),
+          id: Not(id),
+        },
       });
 
       if (existingTypeRoom) {
@@ -82,7 +89,7 @@ export class TypeRoomService {
 
   async findOneById(id: string): Promise<TypeRoom> {
     const typeRoom = await this.typeRoomRepository.findOne({
-      where: { id },
+      where: { id, deleteAt: IsNull() },
       relations: ['rooms'],
     });
 
@@ -99,7 +106,7 @@ export class TypeRoomService {
     // Kiểm tra có phòng nào đang dùng loại phòng này không
     if (typeRoom.rooms && typeRoom.rooms.length > 0) {
       throw new BadRequestException(
-        `Cannot delete room type. There are  rooms using this type.`,
+        `Cannot delete room type. There are rooms using this type.`,
       );
     }
 

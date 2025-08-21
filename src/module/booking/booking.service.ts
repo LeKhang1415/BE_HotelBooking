@@ -11,6 +11,7 @@ import {
   Between,
   FindOptionsOrder,
   FindOptionsWhere,
+  IsNull,
   Repository,
 } from 'typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
@@ -58,7 +59,7 @@ export class BookingService {
     }
 
     const room = await this.roomRepository.findOne({
-      where: { id: roomId },
+      where: { id: roomId, deleteAt: IsNull() },
       relations: ['typeRoom'],
     });
 
@@ -98,7 +99,7 @@ export class BookingService {
   ): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
-      relations: ['user'],
+      relations: ['user', 'room'],
     });
 
     if (!booking) {
@@ -137,7 +138,7 @@ export class BookingService {
     }
 
     const room = await this.roomRepository.findOne({
-      where: { id: roomId },
+      where: { id: roomId, deleteAt: IsNull() },
       relations: ['typeRoom'],
     });
 
@@ -198,10 +199,12 @@ export class BookingService {
   }
 
   public async rejectBooking(bookingId: string): Promise<Booking> {
-    const booking = await this.bookingRepository.findOne({
-      where: { bookingId },
-      relations: ['room'],
-    });
+    const booking = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.room', 'room')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .where('booking.bookingId = :bookingId', { bookingId })
+      .getOne();
 
     if (!booking) {
       throw new NotFoundException('Không tìm thấy thông tin đặt phòng');

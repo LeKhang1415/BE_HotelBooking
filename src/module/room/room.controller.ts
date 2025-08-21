@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -17,11 +18,14 @@ import { UpdateRoomDto } from './dtos/update-room.dto';
 import { GetRoomDto } from './dtos/get-room.dto';
 import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { UserRole } from '../users/enum/user-role.enum';
+import { Roles } from 'src/decorators/roles.decorator';
 
 @Controller('room')
 export class RoomController {
   constructor(private readonly roomService: RoomService) {}
 
+  @Roles(UserRole.Staff)
   @Post()
   @UseInterceptors(FileInterceptor('image'))
   async create(
@@ -31,6 +35,7 @@ export class RoomController {
     return this.roomService.create(createRoomDto, file);
   }
 
+  @Roles(UserRole.Staff)
   @Post(':id')
   @UseInterceptors(FileInterceptor('image'))
   async update(
@@ -62,5 +67,11 @@ export class RoomController {
       typeRoomId,
       findAvailableRoomDto,
     );
+  }
+
+  @Roles(UserRole.Staff)
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return this.roomService.remove(id);
   }
 }

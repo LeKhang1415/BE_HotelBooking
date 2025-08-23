@@ -23,6 +23,9 @@ import { GetUserBookingDto } from './dtos/get-user-booking.dto';
 import { User } from '../users/entities/user.entity';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
+import { GetAllBookingDto } from './dtos/get-booking.dto';
+import { BookingType } from './enums/booking-type';
+import { StayType } from './enums/stay-type';
 
 @Injectable()
 export class BookingService {
@@ -58,6 +61,20 @@ export class BookingService {
       );
     }
 
+    // Check logic theo stayType
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    if (stayType === StayType.DAILY && diffHours < 24) {
+      throw new BadRequestException(
+        'Đặt phòng theo ngày phải ít nhất 1 ngày (24 giờ)',
+      );
+    }
+
+    if (stayType === StayType.HOURLY && diffHours < 1) {
+      throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
+    }
+
     const room = await this.roomRepository.findOne({
       where: { id: roomId, deleteAt: IsNull() },
       relations: ['typeRoom'],
@@ -83,6 +100,7 @@ export class BookingService {
     const booking = this.bookingRepository.create({
       startTime,
       endTime,
+      bookingType: BookingType.WALK_IN,
       stayType,
       numberOfGuest,
       bookingStatus: BookingStatus.Unpaid,
@@ -135,6 +153,20 @@ export class BookingService {
       throw new BadRequestException(
         'Thời gian bắt đầu không được là thời điểm trong quá khứ',
       );
+    }
+
+    // Check logic theo stayType
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    if (stayType === StayType.DAILY && diffHours < 24) {
+      throw new BadRequestException(
+        'Đặt phòng theo ngày phải ít nhất 1 ngày (24 giờ)',
+      );
+    }
+
+    if (stayType === StayType.HOURLY && diffHours < 1) {
+      throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
     }
 
     const room = await this.roomRepository.findOne({
@@ -234,6 +266,72 @@ export class BookingService {
     }
 
     return room;
+  }
+
+  public async getAllBooking(
+    getAllBookingDto: GetAllBookingDto,
+  ): Promise<Paginated<Booking>> {
+    const {
+      status,
+      bookingType,
+      stayType,
+      roomId,
+      startDate,
+      endDate,
+      bookingDateFrom,
+      bookingDateTo,
+      ...pagination
+    } = getAllBookingDto;
+
+    const where: FindOptionsWhere<Booking> = {};
+
+    // Filter by status
+    if (status) {
+      where.bookingStatus = status;
+    }
+
+    // Filter by booking type
+    if (bookingType) {
+      where.bookingType = bookingType;
+    }
+
+    // Filter by stay type
+    if (stayType) {
+      where.stayType = stayType;
+    }
+
+    // Filter by room
+    if (roomId) {
+      where.room = { id: roomId };
+    }
+
+    // Filter by booking period (startTime - endTime)
+    if (startDate && endDate) {
+      where.startTime = Between(new Date(startDate), new Date(endDate));
+    } else if (startDate) {
+      where.startTime = Between(new Date(startDate), new Date());
+    }
+
+    // Filter by booking creation date
+    if (bookingDateFrom && bookingDateTo) {
+      where.bookingDate = Between(bookingDateFrom, bookingDateTo);
+    } else if (bookingDateFrom) {
+      where.bookingDate = Between(bookingDateFrom, new Date());
+    }
+
+    const relations = ['user', 'room', 'room.typeRoom', 'payments', 'review'];
+    const order: FindOptionsOrder<Booking> = {
+      createdDate: 'DESC',
+      bookingDate: 'DESC',
+    };
+
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.bookingRepository,
+      where,
+      order,
+      relations,
+    );
   }
 
   public async findBookingByStatus(

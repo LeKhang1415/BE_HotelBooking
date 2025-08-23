@@ -8,10 +8,17 @@ import { Roles } from 'src/decorators/roles.decorator';
 import { UserRole } from '../users/enum/user-role.enum';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
+import { GetAllBookingDto } from './dtos/get-booking.dto';
 
 @Controller('booking')
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
+
+  @Roles(UserRole.Staff)
+  @Get('all')
+  async getAllBooking(@Query() getAllBookingDto: GetAllBookingDto) {
+    return this.bookingService.getAllBooking(getAllBookingDto);
+  }
 
   @Roles(UserRole.Staff)
   @Get('/find-by-status')

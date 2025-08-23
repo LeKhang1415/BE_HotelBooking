@@ -43,7 +43,7 @@ export class AuthController {
   }
 
   @Auth(AuthType.None)
-  @Post('refresh')
+  @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() request: Request,

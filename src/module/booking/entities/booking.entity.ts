@@ -71,7 +71,13 @@ export class Booking {
   @OneToMany(() => Payment, (payment) => payment.booking, { cascade: true })
   payments: Payment[];
 
-  @Column({ type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    nullable: true,
+    default: 0,
+  })
   totalAmount: number;
 
   @Column({
@@ -81,8 +87,7 @@ export class Booking {
     default: 0,
     nullable: true,
   })
-  extraCharges: number; // Phí phụ (trả phòng trễ, etc)
-
+  extraCharges: number;
   @CreateDateColumn()
   @Exclude()
   createdDate: Date;

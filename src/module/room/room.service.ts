@@ -155,7 +155,7 @@ export class RoomService {
     return room;
   }
 
-  public async findAll(getRoomDto: GetRoomDto): Promise<Paginated<Room>> {
+  async findAll(getRoomDto: GetRoomDto): Promise<Paginated<Room>> {
     const {
       status,
       minPrice,
@@ -302,10 +302,19 @@ export class RoomService {
       );
     }
 
+    //  Kiểm tra room có tồn tại không
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, deleteAt: IsNull() },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Phòng không tồn tại hoặc đã bị xóa');
+    }
+
+    //  Kiểm tra conflict bookings
     let query = this.bookingRepository
       .createQueryBuilder('booking')
-      .where('booking.room.id = :roomId', { roomId })
-      .andWhere('room.deleteAt IS NULL')
+      .where('booking.roomId = :roomId', { roomId }) // Dùng foreign key
       .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
         cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
       })
@@ -314,7 +323,6 @@ export class RoomService {
         { startTime, endTime },
       );
 
-    // Loại trừ booking hiện tại khi update
     if (excludeBookingId) {
       query = query.andWhere('booking.bookingId != :excludeBookingId', {
         excludeBookingId,

@@ -48,32 +48,7 @@ export class BookingService {
     const { roomId, startTime, endTime, stayType, numberOfGuest, userId } =
       createBookingDto;
 
-    // Validate thời gian
-    if (startTime >= endTime) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu phải trước thời gian kết thúc',
-      );
-    }
-
-    if (startTime < new Date()) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
-      );
-    }
-
-    // Check logic theo stayType
-    const diffMs = endTime.getTime() - startTime.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    if (stayType === StayType.DAILY && diffHours < 24) {
-      throw new BadRequestException(
-        'Đặt phòng theo ngày phải ít nhất 1 ngày (24 giờ)',
-      );
-    }
-
-    if (stayType === StayType.HOURLY && diffHours < 1) {
-      throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
-    }
+    this.validateBookingTime(startTime, endTime, stayType);
 
     const room = await this.roomRepository.findOne({
       where: { id: roomId, deleteAt: IsNull() },
@@ -143,31 +118,7 @@ export class BookingService {
     }
 
     // Validate thời gian
-    if (startTime >= endTime) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu phải trước thời gian kết thúc',
-      );
-    }
-
-    if (startTime < new Date()) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
-      );
-    }
-
-    // Check logic theo stayType
-    const diffMs = endTime.getTime() - startTime.getTime();
-    const diffHours = diffMs / (1000 * 60 * 60);
-
-    if (stayType === StayType.DAILY && diffHours < 24) {
-      throw new BadRequestException(
-        'Đặt phòng theo ngày phải ít nhất 1 ngày (24 giờ)',
-      );
-    }
-
-    if (stayType === StayType.HOURLY && diffHours < 1) {
-      throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
-    }
+    this.validateBookingTime(startTime, endTime, stayType);
 
     const room = await this.roomRepository.findOne({
       where: { id: roomId, deleteAt: IsNull() },
@@ -502,5 +453,36 @@ export class BookingService {
     booking.bookingStatus = BookingStatus.Paid;
 
     return await this.bookingRepository.save(booking);
+  }
+
+  private validateBookingTime(
+    startTime: Date,
+    endTime: Date,
+    stayType: StayType,
+  ) {
+    if (startTime >= endTime) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu phải trước thời gian kết thúc',
+      );
+    }
+
+    if (startTime < new Date()) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+      );
+    }
+
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+
+    if (stayType === StayType.DAILY && diffHours < 24) {
+      throw new BadRequestException(
+        'Đặt phòng theo ngày phải ít nhất 1 ngày (24 giờ)',
+      );
+    }
+
+    if (stayType === StayType.HOURLY && diffHours < 1) {
+      throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
+    }
   }
 }

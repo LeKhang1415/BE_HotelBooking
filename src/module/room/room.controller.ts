@@ -46,6 +46,14 @@ export class RoomController {
     return this.roomService.update(id, updateRoomDto, file);
   }
 
+  @Get('available')
+  async findAvailableRoomsInTime(
+    @Query() findAvailableRoomDto: FindAvailableRoomDto,
+  ) {
+    console.log('Tham số query:', findAvailableRoomDto);
+    return this.roomService.findAvailableRoomsInTime(findAvailableRoomDto);
+  }
+
   @Auth(AuthType.None)
   @Get(``)
   async findAll(@Query() getRoomDto: GetRoomDto) {
@@ -56,17 +64,6 @@ export class RoomController {
   @Get(`/:roomId`)
   async findOne(@Param('roomId', new ParseUUIDPipe()) roomId: string) {
     return this.roomService.findOne(roomId);
-  }
-
-  @Get('available{/:typeRoomId}')
-  async findAvailableRoomsInTime(
-    @Param('typeRoomId') typeRoomId: string,
-    @Query() findAvailableRoomDto: FindAvailableRoomDto,
-  ) {
-    return this.roomService.findAvailableRoomsInTime(
-      typeRoomId,
-      findAvailableRoomDto,
-    );
   }
 
   @Roles(UserRole.Staff)

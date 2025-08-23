@@ -1,8 +1,19 @@
-import { IsIn, IsNumber, IsOptional, IsDate, Min } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  Min,
+  IsUUID,
+  IsDateString,
+} from 'class-validator';
 import { IntersectionType } from '@nestjs/mapped-types';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 
 class FindAvailableRoomBaseDto {
+  @IsOptional()
+  @IsUUID()
+  typeRoomId?: string;
+
   @IsOptional()
   @IsNumber()
   @Min(0)
@@ -22,11 +33,11 @@ class FindAvailableRoomBaseDto {
   @Min(1)
   numberOfPeople?: number;
 
-  @IsDate()
-  startTime: Date;
+  @IsDateString()
+  startTime: string;
 
-  @IsDate()
-  endTime: Date;
+  @IsDateString()
+  endTime: string;
 }
 
 export class FindAvailableRoomDto extends IntersectionType(

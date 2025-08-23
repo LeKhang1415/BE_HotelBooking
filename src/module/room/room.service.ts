@@ -201,8 +201,7 @@ export class RoomService {
     );
   }
 
-  public async findAvailableRoomsInTime(
-    typeRoomId: string,
+  async findAvailableRoomsInTime(
     findAvailableRoomDto: FindAvailableRoomDto,
   ): Promise<Paginated<Room>> {
     const {
@@ -212,17 +211,22 @@ export class RoomService {
       maxPrice,
       priceType,
       numberOfPeople,
+      typeRoomId,
       ...pagination
     } = findAvailableRoomDto;
 
+    // Convert sang Date
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
     // Validate thời gian
-    if (startTime >= endTime) {
+    if (start >= end) {
       throw new BadRequestException(
         'Thời gian bắt đầu phải trước thời gian kết thúc',
       );
     }
 
-    if (startTime < new Date()) {
+    if (start < new Date()) {
       throw new BadRequestException(
         'Thời gian bắt đầu không được là thời điểm trong quá khứ',
       );
@@ -238,7 +242,7 @@ export class RoomService {
       .andWhere('room.deleteAt IS NULL')
       .andWhere(
         'booking.startTime < :endTime AND booking.endTime > :startTime',
-        { startTime, endTime },
+        { startTime: end, endTime: start }, // chú ý tên tham số
       )
       .getRawMany();
 
@@ -271,6 +275,7 @@ export class RoomService {
         maxPrice,
       });
     }
+
     if (numberOfPeople != null) {
       queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
         numberOfPeople,

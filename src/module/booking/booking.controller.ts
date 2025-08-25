@@ -30,7 +30,11 @@ export class BookingController {
 
   @Roles(UserRole.Staff)
   @Post()
-  async create(@Body() createBookingDto: CreateBookingDto) {
+  async create(
+    @Body() createBookingDto: CreateBookingDto,
+    @User() user: UserInterface,
+  ) {
+    createBookingDto.userId = user.sub;
     return this.bookingService.create(createBookingDto);
   }
 

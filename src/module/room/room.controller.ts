@@ -50,7 +50,6 @@ export class RoomController {
   async findAvailableRoomsInTime(
     @Query() findAvailableRoomDto: FindAvailableRoomDto,
   ) {
-    console.log('Tham số query:', findAvailableRoomDto);
     return this.roomService.findAvailableRoomsInTime(findAvailableRoomDto);
   }
 

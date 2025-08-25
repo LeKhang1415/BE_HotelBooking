@@ -26,6 +26,7 @@ import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
 import { GetAllBookingDto } from './dtos/get-booking.dto';
 import { BookingType } from './enums/booking-type';
 import { StayType } from './enums/stay-type';
+import { CustomerService } from '../customer/customer.service';
 
 @Injectable()
 export class BookingService {
@@ -42,11 +43,44 @@ export class BookingService {
     private readonly paginationProvider: PaginationProvider,
 
     private readonly roomService: RoomService,
+
+    private readonly customerService: CustomerService,
   ) {}
 
   public async create(createBookingDto: CreateBookingDto): Promise<Booking> {
-    const { roomId, startTime, endTime, stayType, numberOfGuest, userId } =
-      createBookingDto;
+    const { bookingType } = createBookingDto;
+
+    if (!bookingType) {
+      throw new BadRequestException('Booking type is required');
+    }
+
+    switch (bookingType) {
+      case BookingType.WALK_IN:
+        return this.createWalkInBooking(createBookingDto);
+
+      case BookingType.ONLINE:
+        return this.createOnlineBooking(createBookingDto);
+
+      default:
+        throw new BadRequestException('Invalid booking type');
+    }
+  }
+
+  public async createWalkInBooking(
+    createBookingDto: CreateBookingDto,
+  ): Promise<Booking> {
+    const {
+      roomId,
+      startTime,
+      endTime,
+      stayType,
+      numberOfGuest,
+      customerFullName,
+      customerPhone,
+      customerEmail,
+      customerIdentityCard,
+      userId,
+    } = createBookingDto;
 
     this.validateBookingTime(startTime, endTime, stayType);
 
@@ -58,6 +92,7 @@ export class BookingService {
     if (!room) {
       throw new NotFoundException('Không tìm thấy phòng');
     }
+
     // Kiểm tra phòng có khả dụng không
     const isAvailable = await this.roomService.isRoomAvailable(
       roomId,
@@ -71,7 +106,15 @@ export class BookingService {
       );
     }
 
-    // Tạo booking
+    // Tìm hoặc tạo customer
+    const customer = await this.customerService.findOrCreateCustomer({
+      fullName: customerFullName,
+      phone: customerPhone,
+      email: customerEmail,
+      identityCard: customerIdentityCard,
+    });
+
+    // Tạo booking walk-in
     const booking = this.bookingRepository.create({
       startTime,
       endTime,
@@ -80,7 +123,143 @@ export class BookingService {
       numberOfGuest,
       bookingStatus: BookingStatus.Unpaid,
       room,
-      ...(userId && { user: { id: userId } }),
+      customer,
+      createdBy: userId,
+    });
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async createOnlineBooking(
+    createBookingDto: CreateBookingDto,
+  ): Promise<Booking> {
+    const {
+      roomId,
+      startTime,
+      endTime,
+      stayType,
+      numberOfGuest,
+      customerFullName,
+      customerPhone,
+      customerEmail,
+      customerIdentityCard,
+      userId,
+    } = createBookingDto;
+
+    this.validateBookingTime(startTime, endTime, stayType);
+
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, deleteAt: IsNull() },
+      relations: ['typeRoom'],
+    });
+
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng');
+    }
+
+    const isAvailable = await this.roomService.isRoomAvailable(
+      roomId,
+      startTime,
+      endTime,
+    );
+
+    if (!isAvailable) {
+      throw new BadRequestException(
+        'Room is not available for the selected time period',
+      );
+    }
+
+    // Tìm hoặc tạo customer
+    const customer = await this.customerService.findOrCreateCustomer({
+      fullName: customerFullName,
+      phone: customerPhone,
+      email: customerEmail,
+      identityCard: customerIdentityCard,
+    });
+
+    // Tạo booking online
+    const booking = this.bookingRepository.create({
+      startTime,
+      endTime,
+      bookingType: BookingType.ONLINE,
+      stayType,
+      numberOfGuest,
+      bookingStatus: BookingStatus.Unpaid,
+      room,
+      customer,
+      createdBy: userId,
+    });
+
+    return await this.bookingRepository.save(booking);
+  }
+
+  public async createMyBooking(
+    createBookingDto: CreateBookingDto,
+  ): Promise<Booking> {
+    const {
+      roomId,
+      startTime,
+      endTime,
+      stayType,
+      numberOfGuest,
+      customerFullName,
+      customerPhone,
+      customerEmail,
+      customerIdentityCard,
+      userId,
+    } = createBookingDto;
+
+    this.validateBookingTime(startTime, endTime, stayType);
+
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, deleteAt: IsNull() },
+      relations: ['typeRoom'],
+    });
+
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng');
+    }
+
+    const isAvailable = await this.roomService.isRoomAvailable(
+      roomId,
+      startTime,
+      endTime,
+    );
+
+    if (!isAvailable) {
+      throw new BadRequestException(
+        'Room is not available for the selected time period',
+      );
+    }
+
+    // Tìm hoặc tạo customer
+    const customer = await this.customerService.findOrCreateCustomer({
+      fullName: customerFullName,
+      phone: customerPhone,
+      email: customerEmail,
+      identityCard: customerIdentityCard,
+    });
+    // Tìm user
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy user');
+    }
+
+    // Tạo booking My Booking
+    const booking = this.bookingRepository.create({
+      startTime,
+      endTime,
+      bookingType: BookingType.ONLINE,
+      stayType,
+      numberOfGuest,
+      bookingStatus: BookingStatus.Unpaid,
+      room,
+      customer,
+      createdBy: userId,
+      user,
     });
 
     return await this.bookingRepository.save(booking);
@@ -104,55 +283,6 @@ export class BookingService {
     }
 
     return booking;
-  }
-
-  public async createMyBooking(
-    createBookingDto: CreateBookingDto,
-  ): Promise<Booking> {
-    const { roomId, startTime, endTime, stayType, numberOfGuest, userId } =
-      createBookingDto;
-
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('Không tìm thấy người dùng');
-    }
-
-    // Validate thời gian
-    this.validateBookingTime(startTime, endTime, stayType);
-
-    const room = await this.roomRepository.findOne({
-      where: { id: roomId, deleteAt: IsNull() },
-      relations: ['typeRoom'],
-    });
-
-    if (!room) {
-      throw new NotFoundException('Không tìm thấy phòng');
-    }
-    // Kiểm tra phòng có khả dụng không
-    const isAvailable = await this.roomService.isRoomAvailable(
-      roomId,
-      startTime,
-      endTime,
-    );
-
-    if (!isAvailable) {
-      throw new BadRequestException(
-        'Room is not available for the selected time period',
-      );
-    }
-
-    // Tạo booking
-    const booking = this.bookingRepository.create({
-      startTime,
-      endTime,
-      stayType,
-      numberOfGuest,
-      bookingStatus: BookingStatus.Unpaid,
-      room,
-      user,
-    });
-
-    return await this.bookingRepository.save(booking);
   }
 
   public async getUserBooking(

@@ -16,6 +16,7 @@ import { Review } from 'src/module/reviews/entities/review.entity';
 import { Exclude } from 'class-transformer';
 import { Payment } from 'src/module/payment/entities/payment.entity';
 import { BookingType } from '../enums/booking-type';
+import { Customer } from 'src/module/customer/entities/customer.entity';
 
 @Entity()
 export class Booking {
@@ -49,12 +50,22 @@ export class Booking {
   @Column({ type: 'int' })
   numberOfGuest: number;
 
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  createdBy?: string;
+
   @ManyToOne(() => User, (user) => user.bookings, {
     nullable: true,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   })
   user?: User;
+
+  @ManyToOne(() => Customer, (customer) => customer.bookings, {
+    nullable: true,
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  })
+  customer?: Customer;
 
   @ManyToOne(() => Room, (room) => room.bookings, {
     onDelete: 'CASCADE',

@@ -19,6 +19,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { PaginationModule } from './common/pagination/pagination.module';
 import { UploadsModule } from './module/uploads/uploads.module';
 import { PaymentModule } from './module/payment/payment.module';
+import { CustomerModule } from './module/customer/customer.module';
 import appConfig from './config/app.config';
 
 @Module({
@@ -53,6 +54,7 @@ import appConfig from './config/app.config';
     PaginationModule,
     UploadsModule,
     PaymentModule,
+    CustomerModule,
   ],
   controllers: [AppController],
   providers: [

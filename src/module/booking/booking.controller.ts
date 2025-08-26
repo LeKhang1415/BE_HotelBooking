@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { BookingService } from './booking.service';
 import {
   CreateBookingDto,
@@ -12,11 +20,13 @@ import { UserRole } from '../users/enum/user-role.enum';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
 import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
 import { GetAllBookingDto } from './dtos/get-booking.dto';
+import { BookingPreviewDto } from './dtos/booking-preview.dto';
 
 @Controller('booking')
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
+  // ==== STAFF ONLY ====
   @Roles(UserRole.Staff)
   @Get('all')
   async getAllBooking(@Query() getAllBookingDto: GetAllBookingDto) {
@@ -24,11 +34,26 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
-  @Get('/find-by-status')
+  @Get('find-by-status')
   async findBookingByStatus(
     @Query() getBookingByStatusDto: GetBookingByStatusDto,
   ) {
-    return await this.bookingService.findBookingByStatus(getBookingByStatusDto);
+    return this.bookingService.findBookingByStatus(getBookingByStatusDto);
+  }
+
+  @Roles(UserRole.Staff)
+  @Get('booking-today')
+  async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
+    return this.bookingService.findBookingToday(paginationQueryDto);
+  }
+
+  @Roles(UserRole.Staff)
+  @Get('user/:id')
+  async getUserBooking(
+    @Param('id') id: string,
+    @Query() getUserBookingDto: GetUserBookingDto,
+  ) {
+    return this.bookingService.getUserBooking(id, getUserBookingDto);
   }
 
   @Roles(UserRole.Staff)
@@ -42,32 +67,20 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
-  @Get('booking-today')
-  async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
-    return this.bookingService.findBookingToday(paginationQueryDto);
-  }
-
-  @Roles(UserRole.Staff)
-  @Get(`/:bookingId`)
-  async findOne(@Param('bookingId') bookingId: string) {
-    return await this.bookingService.findOne(bookingId);
-  }
-
-  @Roles(UserRole.Staff)
-  @Get('user/:id')
-  async getUserBooking(
-    @Param('id') id: string,
-    @Query() getUserBookingDto: GetUserBookingDto,
+  @Post('reject-booking/:bookingId')
+  async rejectBooking(
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
   ) {
-    return this.bookingService.getUserBooking(id, getUserBookingDto);
-  }
-
-  @Roles(UserRole.Staff)
-  @Post('/reject-booking/:bookingId')
-  async rejectBooking(@Param('bookingId') bookingId: string) {
     return this.bookingService.rejectBooking(bookingId);
   }
 
+  @Roles(UserRole.Staff)
+  @Get(':bookingId')
+  async findOne(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
+    return this.bookingService.findOne(bookingId);
+  }
+
+  // ==== USER BOOKING ====
   @Post('my-booking')
   async createMyBooking(
     @Body() createMyBookingDto: CreateMyBookingDto,
@@ -87,17 +100,23 @@ export class BookingController {
 
   @Get('my-booking/:bookingId')
   async findMyBooking(
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
     @User() user: UserInterface,
   ) {
     return this.bookingService.findMyBooking(user.sub, bookingId);
   }
 
-  @Post('/cancel-my-booking/:bookingId')
+  @Post('cancel-my-booking/:bookingId')
   async cancelMyBooking(
     @User() user: UserInterface,
-    @Param('bookingId') bookingId: string,
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
   ) {
     return this.bookingService.cancelMyBooking(user.sub, bookingId);
+  }
+
+  // ==== PREVIEW BOOKING ====
+  @Post('preview')
+  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
+    return this.bookingService.previewBooking(bookingPreviewDto);
   }
 }

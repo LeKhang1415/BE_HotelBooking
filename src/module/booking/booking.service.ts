@@ -30,6 +30,7 @@ import { GetAllBookingDto } from './dtos/get-booking.dto';
 import { BookingType } from './enums/booking-type';
 import { StayType } from './enums/stay-type';
 import { CustomerService } from '../customer/customer.service';
+import { BookingPreviewDto } from './dtos/booking-preview.dto';
 
 @Injectable()
 export class BookingService {
@@ -65,6 +66,7 @@ export class BookingService {
     return this.createBooking(createBookingDto);
   }
 
+  // Cập nhật method createBooking để tính totalAmount
   private async createBooking(
     createBookingDto: CreateBookingDto,
   ): Promise<Booking> {
@@ -116,13 +118,22 @@ export class BookingService {
       identityCard: customerIdentityCard,
     });
 
-    // Tạo booking
+    // Tính toán tổng tiền
+    const totalAmount = this.calculateBookingAmount(
+      room,
+      startTime,
+      endTime,
+      stayType,
+    );
+
+    // Tạo booking với totalAmount
     const booking = this.bookingRepository.create({
       startTime,
       endTime,
       bookingType,
       stayType,
       numberOfGuest,
+      totalAmount, // Thêm totalAmount vào entity
       bookingStatus: BookingStatus.Unpaid,
       room,
       customer,
@@ -166,6 +177,47 @@ export class BookingService {
     booking.user = user;
 
     return await this.bookingRepository.save(booking);
+  }
+
+  async previewBooking(bookingPreviewDto: BookingPreviewDto) {
+    const { roomId, startTime, endTime, stayType, numberOfGuest } =
+      bookingPreviewDto;
+
+    // validate thời gian
+    this.validateBookingTime(startTime, endTime, stayType);
+
+    // Tìm kiếm phòng
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, deleteAt: IsNull() },
+      relations: ['typeRoom'],
+    });
+    if (!room) {
+      throw new NotFoundException('Không tìm thấy phòng');
+    }
+
+    // kiểm tra sức chứa tối đa
+    if (room.typeRoom?.maxPeople && numberOfGuest > room.typeRoom.maxPeople) {
+      throw new BadRequestException(
+        `Số khách tối đa cho phòng này là ${room.typeRoom.maxPeople}`,
+      );
+    }
+
+    // tính tổng tiền
+    const totalAmountNumber = this.calculateBookingAmount(
+      room,
+      startTime,
+      endTime,
+      stayType,
+    );
+
+    return {
+      room,
+      startTime,
+      endTime,
+      stayType,
+      numberOfGuest,
+      totalAmount: totalAmountNumber, // number (vnd)
+    };
   }
 
   public async findMyBooking(
@@ -517,5 +569,68 @@ export class BookingService {
     if (stayType === StayType.HOURLY && diffHours < 1) {
       throw new BadRequestException('Đặt phòng theo giờ phải ít nhất 1 giờ');
     }
+  }
+
+  private calculateBookingAmount(
+    room: Room,
+    startTime: Date,
+    endTime: Date,
+    stayType: StayType,
+  ): number {
+    const diffMs = endTime.getTime() - startTime.getTime();
+    const totalHours = diffMs / (1000 * 60 * 60);
+    const totalDays = totalHours / 24;
+
+    // Luôn làm tròn lên để không thiệt hại cho khách sạn
+    const billingHours = Math.ceil(totalHours);
+    const billingDays = Math.ceil(totalDays);
+
+    if (stayType === StayType.HOURLY) {
+      return this.calculateHourlyRate(room, billingHours);
+    }
+
+    if (stayType === StayType.DAILY) {
+      return this.calculateDailyRate(
+        room,
+        totalDays,
+        billingDays,
+        billingHours,
+      );
+    }
+
+    throw new BadRequestException('Loại lưu trú không hợp lệ');
+  }
+
+  /**
+   * Tính giá theo giờ
+   */
+  private calculateHourlyRate(room: Room, billingHours: number): number {
+    return billingHours * room.pricePerHour;
+  }
+
+  /**
+   * Tính giá theo ngày với logic:
+   * - Nếu < 0.5 ngày (12 tiếng): tính theo giờ (rẻ hơn)
+   * - Nếu >= 0.5 ngày: tính theo ngày (làm tròn lên)
+   */
+  private calculateDailyRate(
+    room: Room,
+    actualDays: number,
+    billingDays: number,
+    billingHours: number,
+  ): number {
+    const HALF_DAY_THRESHOLD = 0.5; // 12 tiếng
+
+    // Nếu thời gian < 12 tiếng, tính theo giờ sẽ rẻ hơn
+    if (actualDays < HALF_DAY_THRESHOLD) {
+      const hourlyPrice = billingHours * room.pricePerHour;
+      const dailyPrice = billingDays * room.pricePerDay;
+
+      // Chọn giá rẻ hơn cho khách hàng
+      return Math.min(hourlyPrice, dailyPrice);
+    }
+
+    // Thời gian >= 12 tiếng, tính theo ngày
+    return billingDays * room.pricePerDay;
   }
 }

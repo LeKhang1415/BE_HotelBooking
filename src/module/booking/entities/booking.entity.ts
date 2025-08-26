@@ -84,10 +84,10 @@ export class Booking {
   payments: Payment[];
 
   @Column({
+    name: 'total_amount',
     type: 'decimal',
-    precision: 12,
+    precision: 10,
     scale: 2,
-    nullable: true,
     default: 0,
   })
   totalAmount: number;
@@ -100,6 +100,7 @@ export class Booking {
     nullable: true,
   })
   extraCharges: number;
+
   @CreateDateColumn()
   @Exclude()
   createdDate: Date;

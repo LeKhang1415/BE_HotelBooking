@@ -22,6 +22,7 @@ export class BaseBookingDto {
 
   @IsDate({ message: 'Thời gian bắt đầu không hợp lệ' })
   startTime: Date;
+
   @IsDate({ message: 'Thời gian kết thúc không hợp lệ' })
   endTime: Date;
 

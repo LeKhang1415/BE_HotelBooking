@@ -11,33 +11,26 @@ import {
   Matches,
   Length,
 } from 'class-validator';
-import { StayType } from '../enums/stay-type';
+import { Type } from 'class-transformer';
 import { BookingType } from '../enums/booking-type';
+import { StayType } from '../enums/stay-type';
 
-export class CreateBookingDto {
+// Base DTO chứa các field chung
+export class BaseBookingDto {
+  @IsUUID()
+  roomId: string;
+
   @IsDate({ message: 'Thời gian bắt đầu không hợp lệ' })
   startTime: Date;
-
   @IsDate({ message: 'Thời gian kết thúc không hợp lệ' })
   endTime: Date;
 
   @IsEnum(StayType, { message: 'Loại lưu trú không hợp lệ' })
   stayType: StayType;
 
-  @IsNumber()
+  @IsNumber({}, { message: 'Số lượng khách phải là số' })
   @Min(1, { message: 'Số lượng khách phải lớn hơn hoặc bằng 1' })
   numberOfGuest: number;
-
-  @IsUUID()
-  roomId: string;
-
-  @IsNotEmpty()
-  @IsEnum(BookingType)
-  bookingType: BookingType;
-
-  @IsOptional()
-  @IsUUID()
-  userId?: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Họ tên khách hàng không được để trống' })
@@ -50,12 +43,26 @@ export class CreateBookingDto {
   })
   customerPhone: string;
 
+  @IsOptional()
   @IsEmail({}, { message: 'Email không hợp lệ' })
-  customerEmail: string;
+  customerEmail?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'CMND/CCCD không được để trống' })
   @Length(9, 12, { message: 'CMND/CCCD phải có từ 9 đến 12 số' })
   @Matches(/^[0-9]+$/, { message: 'CMND/CCCD chỉ được chứa số' })
-  customerIdentityCard: string;
+  customerIdentityCard?: string;
+
+  @IsUUID()
+  @IsOptional()
+  userId?: string;
 }
+
+// CreateBookingDto extends Base và thêm bookingType
+export class CreateBookingDto extends BaseBookingDto {
+  @IsNotEmpty()
+  @IsEnum(BookingType, { message: 'Loại booking không hợp lệ' })
+  bookingType: BookingType;
+}
+
+export class CreateMyBookingDto extends BaseBookingDto {}

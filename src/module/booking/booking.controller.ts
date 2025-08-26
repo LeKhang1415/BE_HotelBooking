@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { BookingService } from './booking.service';
-import { CreateBookingDto } from './dtos/create-booking.dto';
+import {
+  CreateBookingDto,
+  CreateMyBookingDto,
+} from './dtos/create-booking.dto';
 import { GetUserBookingDto } from './dtos/get-user-booking.dto';
 import { User } from 'src/decorators/user.decorator';
 import { UserInterface } from '../users/interfaces/user.interface';
@@ -39,6 +42,12 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
+  @Get('booking-today')
+  async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
+    return this.bookingService.findBookingToday(paginationQueryDto);
+  }
+
+  @Roles(UserRole.Staff)
   @Get(`/:bookingId`)
   async findOne(@Param('bookingId') bookingId: string) {
     return await this.bookingService.findOne(bookingId);
@@ -54,12 +63,6 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
-  @Get('booking-today')
-  async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
-    return this.bookingService.findBookingToday(paginationQueryDto);
-  }
-
-  @Roles(UserRole.Staff)
   @Post('/reject-booking/:bookingId')
   async rejectBooking(@Param('bookingId') bookingId: string) {
     return this.bookingService.rejectBooking(bookingId);
@@ -67,11 +70,19 @@ export class BookingController {
 
   @Post('my-booking')
   async createMyBooking(
-    @Body() createBookingDto: CreateBookingDto,
+    @Body() createMyBookingDto: CreateMyBookingDto,
     @User() user: UserInterface,
   ) {
-    createBookingDto.userId = user.sub;
-    return this.bookingService.createMyBooking(createBookingDto);
+    createMyBookingDto.userId = user.sub;
+    return this.bookingService.createMyBooking(createMyBookingDto);
+  }
+
+  @Get('my-booking/all')
+  async getAllMyBooking(
+    @Query() getUserBookingDto: GetUserBookingDto,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
   }
 
   @Get('my-booking/:bookingId')
@@ -80,14 +91,6 @@ export class BookingController {
     @User() user: UserInterface,
   ) {
     return this.bookingService.findMyBooking(user.sub, bookingId);
-  }
-
-  @Get('my-booking')
-  async getMyAllBooking(
-    @Query() getUserBookingDto: GetUserBookingDto,
-    @User() user: UserInterface,
-  ) {
-    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
   }
 
   @Post('/cancel-my-booking/:bookingId')

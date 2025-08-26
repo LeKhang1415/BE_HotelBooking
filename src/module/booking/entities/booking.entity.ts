@@ -57,6 +57,7 @@ export class Booking {
     nullable: true,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
+    eager: true,
   })
   user?: User;
 

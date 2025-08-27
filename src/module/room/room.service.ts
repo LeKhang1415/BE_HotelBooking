@@ -17,6 +17,7 @@ import { Booking } from '../booking/entities/booking.entity';
 import { BookingStatus } from '../booking/enums/booking-status';
 import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 import { UploadsService } from '../uploads/uploads.service';
+import { CheckRoomAvailableDto } from './dtos/check-room-available.dto';
 
 @Injectable()
 export class RoomService {
@@ -200,6 +201,16 @@ export class RoomService {
       queryBuilder,
     );
   }
+  async findAllRoomsWithoutPagination(): Promise<Room[]> {
+    let queryBuilder = this.roomRepository
+      .createQueryBuilder('room')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .where('room.deleteAt IS NULL')
+      .andWhere('typeRoom.deleteAt IS NULL')
+      .orderBy('room.name', 'ASC');
+
+    return await queryBuilder.getMany();
+  }
 
   async findAvailableRoomsInTime(
     findAvailableRoomDto: FindAvailableRoomDto,
@@ -288,7 +299,7 @@ export class RoomService {
     );
   }
 
-  public async isRoomAvailable(
+  async isRoomAvailable(
     roomId: string,
     startTime: Date,
     endTime: Date,
@@ -336,6 +347,22 @@ export class RoomService {
 
     const conflictingBooking = await query.getOne();
     return !conflictingBooking;
+  }
+
+  async checkAvailability(
+    roomId: string,
+    checkRoomAvailableDto: CheckRoomAvailableDto,
+  ) {
+    const { startTime, endTime, excludeBookingId } = checkRoomAvailableDto;
+
+    const available = await this.isRoomAvailable(
+      roomId,
+      startTime,
+      endTime,
+      excludeBookingId,
+    );
+
+    return { roomId, available };
   }
 
   public async remove(id: string): Promise<{ deleted: boolean; id: string }> {

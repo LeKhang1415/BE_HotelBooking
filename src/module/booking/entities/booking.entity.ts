@@ -51,7 +51,7 @@ export class Booking {
   numberOfGuest: number;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  createdBy?: string;
+  createdBy?: User;
 
   @ManyToOne(() => User, (user) => user.bookings, {
     nullable: true,

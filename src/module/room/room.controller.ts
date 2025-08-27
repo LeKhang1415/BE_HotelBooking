@@ -20,6 +20,7 @@ import { FindAvailableRoomDto } from './dtos/find-available-room.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '../users/enum/user-role.enum';
 import { Roles } from 'src/decorators/roles.decorator';
+import { CheckRoomAvailableDto } from './dtos/check-room-available.dto';
 
 @Controller('room')
 export class RoomController {
@@ -53,10 +54,23 @@ export class RoomController {
     return this.roomService.findAvailableRoomsInTime(findAvailableRoomDto);
   }
 
+  @Get('is-available/:id')
+  async isAvailable(
+    @Param('id', new ParseUUIDPipe()) roomId: string,
+    @Query() checkRoomAvailableDto: CheckRoomAvailableDto,
+  ) {
+    return this.roomService.checkAvailability(roomId, checkRoomAvailableDto);
+  }
+
   @Auth(AuthType.None)
   @Get(``)
   async findAll(@Query() getRoomDto: GetRoomDto) {
     return this.roomService.findAll(getRoomDto);
+  }
+
+  @Get(`all`)
+  async findAllWithoutPagination() {
+    return this.roomService.findAllRoomsWithoutPagination();
   }
 
   @Auth(AuthType.None)

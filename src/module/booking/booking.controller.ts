@@ -30,6 +30,59 @@ import {
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
+  // ==== USER BOOKING ====
+  @Post('my-booking')
+  async createMyBooking(
+    @Body() createMyBookingDto: CreateMyBookingDto,
+    @User() user: UserInterface,
+  ) {
+    createMyBookingDto.userId = user.sub;
+    return this.bookingService.createMyBooking(createMyBookingDto);
+  }
+
+  // ==== PREVIEW BOOKING ====
+  @Post('preview')
+  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
+    return this.bookingService.previewBooking(bookingPreviewDto);
+  }
+
+  @Post('my-booking/:bookingId')
+  async updateMyBooking(
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
+    @Body() updateMyBookingDto: UpdateMyBookingDto,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.updateMyBooking(
+      bookingId,
+      updateMyBookingDto,
+      user.sub,
+    );
+  }
+
+  @Get('my-booking/all')
+  async getAllMyBooking(
+    @Query() getUserBookingDto: GetUserBookingDto,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
+  }
+
+  @Get('my-booking/:bookingId')
+  async findMyBooking(
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.findMyBooking(user.sub, bookingId);
+  }
+
+  @Post('cancel-my-booking/:bookingId')
+  async cancelMyBooking(
+    @User() user: UserInterface,
+    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
+  ) {
+    return this.bookingService.cancelMyBooking(user.sub, bookingId);
+  }
+
   // ==== STAFF ONLY ====
   @Roles(UserRole.Staff)
   @Get('all')
@@ -91,58 +144,5 @@ export class BookingController {
   @Get(':bookingId')
   async findOne(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
     return this.bookingService.findOne(bookingId);
-  }
-
-  // ==== USER BOOKING ====
-  @Post('my-booking')
-  async createMyBooking(
-    @Body() createMyBookingDto: CreateMyBookingDto,
-    @User() user: UserInterface,
-  ) {
-    createMyBookingDto.userId = user.sub;
-    return this.bookingService.createMyBooking(createMyBookingDto);
-  }
-
-  @Post('my-booking/:bookingId')
-  async updateMyBooking(
-    @Param('bookingId') bookingId: string,
-    @Body() updateMyBookingDto: UpdateMyBookingDto,
-    @User() user: UserInterface,
-  ) {
-    return this.bookingService.updateMyBooking(
-      bookingId,
-      updateMyBookingDto,
-      user.sub,
-    );
-  }
-
-  @Get('my-booking/all')
-  async getAllMyBooking(
-    @Query() getUserBookingDto: GetUserBookingDto,
-    @User() user: UserInterface,
-  ) {
-    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
-  }
-
-  @Get('my-booking/:bookingId')
-  async findMyBooking(
-    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
-    @User() user: UserInterface,
-  ) {
-    return this.bookingService.findMyBooking(user.sub, bookingId);
-  }
-
-  @Post('cancel-my-booking/:bookingId')
-  async cancelMyBooking(
-    @User() user: UserInterface,
-    @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
-  ) {
-    return this.bookingService.cancelMyBooking(user.sub, bookingId);
-  }
-
-  // ==== PREVIEW BOOKING ====
-  @Post('preview')
-  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
-    return this.bookingService.previewBooking(bookingPreviewDto);
   }
 }

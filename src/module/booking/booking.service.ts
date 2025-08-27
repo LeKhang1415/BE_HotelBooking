@@ -130,6 +130,14 @@ export class BookingService {
       stayType,
     );
 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Người dùng không tồn tại');
+    }
+
     // Tạo booking với totalAmount
     const booking = this.bookingRepository.create({
       startTime,
@@ -141,7 +149,7 @@ export class BookingService {
       bookingStatus: BookingStatus.Unpaid,
       room,
       customer,
-      createdBy: userId,
+      createdBy: user,
     });
 
     return await this.bookingRepository.save(booking);
@@ -475,7 +483,7 @@ export class BookingService {
   public async findOne(id: string): Promise<Booking> {
     const room = await this.bookingRepository.findOne({
       where: { bookingId: id },
-      relations: ['room', 'user'],
+      relations: ['room', 'user', 'customer'],
     });
 
     if (!room) {

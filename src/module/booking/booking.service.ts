@@ -31,6 +31,10 @@ import { BookingType } from './enums/booking-type';
 import { StayType } from './enums/stay-type';
 import { CustomerService } from '../customer/customer.service';
 import { BookingPreviewDto } from './dtos/booking-preview.dto';
+import {
+  UpdateBookingDto,
+  UpdateMyBookingDto,
+} from './dtos/update-booking.dto';
 
 @Injectable()
 export class BookingService {
@@ -133,7 +137,7 @@ export class BookingService {
       bookingType,
       stayType,
       numberOfGuest,
-      totalAmount, // Thêm totalAmount vào entity
+      totalAmount,
       bookingStatus: BookingStatus.Unpaid,
       room,
       customer,
@@ -179,6 +183,183 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
+  public async update(
+    bookingId: string,
+    updateBookingDto: UpdateBookingDto,
+  ): Promise<Booking> {
+    // Tìm booking cần update
+    const existingBooking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      relations: ['room', 'room.typeRoom', 'customer', 'user'],
+    });
+
+    if (!existingBooking) {
+      throw new NotFoundException('Không tìm thấy booking');
+    }
+
+    // Kiểm tra trạng thái booking có thể update không
+    if (
+      existingBooking.bookingStatus === BookingStatus.CheckedIn ||
+      existingBooking.bookingStatus === BookingStatus.Completed ||
+      existingBooking.bookingStatus === BookingStatus.Cancelled
+    ) {
+      throw new BadRequestException(
+        'Không thể cập nhật booking ở trạng thái này',
+      );
+    }
+
+    return this.updateBooking(existingBooking, updateBookingDto);
+  }
+
+  public async updateMyBooking(
+    bookingId: string,
+    updateMyBookingDto: UpdateMyBookingDto,
+    userId: string,
+  ): Promise<Booking> {
+    // Tìm booking cần update và kiểm tra
+    const existingBooking = await this.bookingRepository.findOne({
+      where: {
+        bookingId,
+        user: { id: userId },
+      },
+      relations: ['room', 'room.typeRoom', 'customer', 'user'],
+    });
+
+    if (!existingBooking) {
+      throw new NotFoundException(
+        'Không tìm thấy booking hoặc bạn không có quyền cập nhật',
+      );
+    }
+
+    // Kiểm tra trạng thái
+    if (
+      existingBooking.bookingStatus === BookingStatus.CheckedIn ||
+      existingBooking.bookingStatus === BookingStatus.Completed ||
+      existingBooking.bookingStatus === BookingStatus.Cancelled
+    ) {
+      throw new BadRequestException(
+        'Không thể cập nhật booking ở trạng thái này',
+      );
+    }
+
+    return this.updateBooking(
+      existingBooking,
+      updateMyBookingDto as UpdateBookingDto,
+    );
+  }
+
+  private async updateBooking(
+    existingBooking: Booking,
+    updateBookingDto: UpdateBookingDto,
+  ): Promise<Booking> {
+    const {
+      roomId,
+      startTime,
+      endTime,
+      stayType,
+      numberOfGuest,
+      customerFullName,
+      customerPhone,
+      customerEmail,
+      customerIdentityCard,
+      bookingType,
+    } = updateBookingDto;
+
+    let updatedRoom = existingBooking.room;
+    let updatedCustomer = existingBooking.customer;
+    let newTotalAmount = existingBooking.totalAmount;
+
+    // Kiểm tra và validate thời gian nếu có thay đổi
+    const newStartTime = startTime || existingBooking.startTime;
+    const newEndTime = endTime || existingBooking.endTime;
+    const newStayType = stayType || existingBooking.stayType;
+
+    if (startTime || endTime || stayType) {
+      this.validateBookingTime(newStartTime, newEndTime, newStayType);
+    }
+
+    // Kiểm tra và cập nhật phòng nếu có thay đổi
+    if (roomId && roomId !== existingBooking.room.id) {
+      const room = await this.roomRepository.findOne({
+        where: { id: roomId, deleteAt: IsNull() },
+        relations: ['typeRoom'],
+      });
+
+      if (!room) {
+        throw new NotFoundException('Không tìm thấy phòng');
+      }
+      updatedRoom = room;
+    }
+
+    // Kiểm tra tính khả dụng của phòng nếu có thay đổi thời gian hoặc phòng
+    if (roomId !== existingBooking.room.id || startTime || endTime) {
+      const isAvailable = await this.roomService.isRoomAvailable(
+        updatedRoom.id,
+        newStartTime,
+        newEndTime,
+        existingBooking.bookingId,
+      );
+
+      if (!isAvailable) {
+        throw new BadRequestException(
+          'Phòng không khả dụng trong khoảng thời gian đã chọn',
+        );
+      }
+    }
+
+    // Cập nhật thông tin khách hàng nếu có thay đổi
+    if (
+      customerFullName ||
+      customerPhone ||
+      customerEmail ||
+      customerIdentityCard
+    ) {
+      // Nếu booking luôn có customer thì OK, nếu không bạn có thể thêm check trước
+      const customerData = {
+        fullName: customerFullName || existingBooking.customer?.fullName || '',
+        phone: customerPhone || existingBooking.customer?.phone || '',
+        email: customerEmail || existingBooking.customer?.email || undefined,
+        identityCard:
+          customerIdentityCard ||
+          existingBooking.customer?.identityCard ||
+          undefined,
+      };
+
+      updatedCustomer =
+        await this.customerService.findOrCreateCustomer(customerData);
+    }
+
+    // Tính lại tổng tiền nếu có thay đổi phòng, thời gian hoặc loại lưu trú
+    if (
+      roomId !== existingBooking.room.id ||
+      startTime ||
+      endTime ||
+      stayType
+    ) {
+      newTotalAmount = this.calculateBookingAmount(
+        updatedRoom,
+        newStartTime,
+        newEndTime,
+        newStayType,
+      );
+    }
+
+    const updatedBooking = await this.bookingRepository.save({
+      ...existingBooking,
+      startTime: newStartTime,
+      endTime: newEndTime,
+      bookingType: bookingType || existingBooking.bookingType,
+      stayType: newStayType,
+      numberOfGuest: numberOfGuest || existingBooking.numberOfGuest,
+      totalAmount: newTotalAmount,
+      room: updatedRoom,
+      customer: updatedCustomer,
+      user: existingBooking.user,
+    });
+
+    return updatedBooking;
+  }
+
   async previewBooking(bookingPreviewDto: BookingPreviewDto) {
     const { roomId, startTime, endTime, stayType, numberOfGuest } =
       bookingPreviewDto;
@@ -211,12 +392,12 @@ export class BookingService {
     );
 
     return {
-      room,
       startTime,
       endTime,
       stayType,
       numberOfGuest,
       totalAmount: totalAmountNumber, // number (vnd)
+      room,
     };
   }
 
@@ -355,7 +536,7 @@ export class BookingService {
       where.bookingDate = Between(bookingDateFrom, new Date());
     }
 
-    const relations = ['user', 'room', 'room.typeRoom', 'payments', 'review'];
+    const relations = ['user', 'room', 'room.typeRoom', 'payments', 'customer'];
     const order: FindOptionsOrder<Booking> = {
       createdDate: 'DESC',
       bookingDate: 'DESC',

@@ -62,11 +62,11 @@ export class Booking {
   user?: User;
 
   @ManyToOne(() => Customer, (customer) => customer.bookings, {
-    nullable: true,
+    nullable: false,
     onDelete: 'CASCADE',
     onUpdate: 'CASCADE',
   })
-  customer?: Customer;
+  customer: Customer;
 
   @ManyToOne(() => Room, (room) => room.bookings, {
     onDelete: 'CASCADE',

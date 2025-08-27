@@ -21,6 +21,10 @@ import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.
 import { GetBookingByStatusDto } from './dtos/get-booking-by-status';
 import { GetAllBookingDto } from './dtos/get-booking.dto';
 import { BookingPreviewDto } from './dtos/booking-preview.dto';
+import {
+  UpdateBookingDto,
+  UpdateMyBookingDto,
+} from './dtos/update-booking.dto';
 
 @Controller('booking')
 export class BookingController {
@@ -67,6 +71,15 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
+  @Post(':bookingId')
+  async update(
+    @Param('bookingId') bookingId: string,
+    @Body() updateBookingDto: UpdateBookingDto,
+  ) {
+    return this.bookingService.update(bookingId, updateBookingDto);
+  }
+
+  @Roles(UserRole.Staff)
   @Post('reject-booking/:bookingId')
   async rejectBooking(
     @Param('bookingId', new ParseUUIDPipe()) bookingId: string,
@@ -88,6 +101,19 @@ export class BookingController {
   ) {
     createMyBookingDto.userId = user.sub;
     return this.bookingService.createMyBooking(createMyBookingDto);
+  }
+
+  @Post('my-booking/:bookingId')
+  async updateMyBooking(
+    @Param('bookingId') bookingId: string,
+    @Body() updateMyBookingDto: UpdateMyBookingDto,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.updateMyBooking(
+      bookingId,
+      updateMyBookingDto,
+      user.sub,
+    );
   }
 
   @Get('my-booking/all')

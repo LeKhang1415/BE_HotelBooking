@@ -22,7 +22,7 @@ export class Customer {
   @Column({ type: 'varchar', length: 255, nullable: true })
   email?: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: false })
+  @Column({ type: 'varchar', length: 50, nullable: true })
   identityCard: string;
 
   @OneToMany(() => Booking, (booking) => booking.customer)

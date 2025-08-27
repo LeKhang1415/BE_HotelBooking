@@ -242,7 +242,7 @@ export class RoomService {
       .andWhere('room.deleteAt IS NULL')
       .andWhere(
         'booking.startTime < :endTime AND booking.endTime > :startTime',
-        { startTime: end, endTime: start }, // chú ý tên tham số
+        { startTime: start, endTime: end },
       )
       .getRawMany();
 

@@ -141,6 +141,12 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
+  @Post('mark-as-paid/:bookingId')
+  async markAsPaid(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
+    return this.bookingService.markAsPaid(bookingId);
+  }
+
+  @Roles(UserRole.Staff)
   @Get(':bookingId')
   async findOne(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
     return this.bookingService.findOne(bookingId);

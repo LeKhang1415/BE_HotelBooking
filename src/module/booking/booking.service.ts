@@ -404,7 +404,7 @@ export class BookingService {
       endTime,
       stayType,
       numberOfGuest,
-      totalAmount: totalAmountNumber, // number (vnd)
+      totalAmount: totalAmountNumber,
       room,
     };
   }
@@ -465,6 +465,10 @@ export class BookingService {
 
     if (!booking) {
       throw new NotFoundException('Không tìm thấy thông tin đặt phòng');
+    }
+
+    if (booking.bookingStatus === BookingStatus.Paid) {
+      throw new BadRequestException('Không thể hủy vì đặt phòng đã thanh toán');
     }
 
     if (booking.bookingStatus === BookingStatus.Completed) {
@@ -705,7 +709,7 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
-  public async markAsPaid(bookingId: string): Promise<Booking> {
+  async markAsPaid(bookingId: string): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
       relations: ['room', 'user'],

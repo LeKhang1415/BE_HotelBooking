@@ -1,4 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  DeleteDateColumn,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { Review } from 'src/module/reviews/entities/review.entity';
 import { Booking } from 'src/module/booking/entities/booking.entity';
@@ -34,4 +40,7 @@ export class User {
 
   @OneToMany(() => Review, (review) => review.user)
   reviews?: Review[];
+
+  @DeleteDateColumn({ nullable: true })
+  deletedAt?: Date;
 }

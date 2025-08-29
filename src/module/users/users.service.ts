@@ -4,7 +4,7 @@ import {
   NotFoundException,
   RequestTimeoutException,
 } from '@nestjs/common';
-import { FindOptionsWhere, Like, Not, Repository } from 'typeorm';
+import { FindOptionsWhere, IsNull, Like, Not, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { HashingProvider } from '../auth/providers/hashing.provider';
@@ -71,7 +71,7 @@ export class UsersService {
 
   async checkUserExists(email: string) {
     const user = await this.usersRepository.findOne({
-      where: { email },
+      where: { email, deletedAt: IsNull() },
     });
 
     // Nếu không tìm thấy user, trả về lỗi 404
@@ -85,7 +85,8 @@ export class UsersService {
     const { keyword, ...pagination } = getUserDto;
 
     const where: FindOptionsWhere<User> = {
-      name: Like('%' + keyword + '%'),
+      name: Like(`%${keyword}%`),
+      deletedAt: IsNull(),
     };
 
     return await this.paginationProvider.paginateQuery(
@@ -108,6 +109,7 @@ export class UsersService {
         where: {
           email: updateUserDto.email,
           id: Not(userId), // loại trừ user hiện tại
+          deletedAt: IsNull(),
         },
       });
 
@@ -127,5 +129,10 @@ export class UsersService {
     Object.assign(user, updateUserDto);
 
     return await this.usersRepository.save(user);
+  }
+
+  public async remove(id: string) {
+    await this.usersRepository.softDelete(id);
+    return { deleted: true, id };
   }
 }

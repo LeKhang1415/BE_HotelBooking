@@ -30,7 +30,21 @@ import {
 export class BookingController {
   constructor(private readonly bookingService: BookingService) {}
 
+  // ==== PREVIEW BOOKING ====
+  @Post('preview')
+  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
+    return this.bookingService.previewBooking(bookingPreviewDto);
+  }
+
   // ==== USER BOOKING ====
+
+  @Get('my-booking/all')
+  async getAllMyBooking(
+    @Query() getUserBookingDto: GetUserBookingDto,
+    @User() user: UserInterface,
+  ) {
+    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
+  }
   @Post('my-booking')
   async createMyBooking(
     @Body() createMyBookingDto: CreateMyBookingDto,
@@ -38,12 +52,6 @@ export class BookingController {
   ) {
     createMyBookingDto.userId = user.sub;
     return this.bookingService.createMyBooking(createMyBookingDto);
-  }
-
-  // ==== PREVIEW BOOKING ====
-  @Post('preview')
-  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
-    return this.bookingService.previewBooking(bookingPreviewDto);
   }
 
   @Post('my-booking/:bookingId')
@@ -57,14 +65,6 @@ export class BookingController {
       updateMyBookingDto,
       user.sub,
     );
-  }
-
-  @Get('my-booking/all')
-  async getAllMyBooking(
-    @Query() getUserBookingDto: GetUserBookingDto,
-    @User() user: UserInterface,
-  ) {
-    return this.bookingService.getUserBooking(user.sub, getUserBookingDto);
   }
 
   @Get('my-booking/:bookingId')

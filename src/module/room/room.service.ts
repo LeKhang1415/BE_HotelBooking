@@ -305,20 +305,7 @@ export class RoomService {
     endTime: Date,
     excludeBookingId?: string,
   ): Promise<boolean> {
-    // Validate thời gian
-    if (startTime >= endTime) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu phải trước thời gian kết thúc',
-      );
-    }
-
-    if (startTime < new Date()) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
-      );
-    }
-
-    //  Kiểm tra room có tồn tại không
+    // check room tồn tại
     const room = await this.roomRepository.findOne({
       where: { id: roomId, deleteAt: IsNull() },
     });
@@ -327,10 +314,10 @@ export class RoomService {
       throw new NotFoundException('Phòng không tồn tại hoặc đã bị xóa');
     }
 
-    //  Kiểm tra conflict bookings
+    // check conflict bookings
     let query = this.bookingRepository
       .createQueryBuilder('booking')
-      .where('booking.roomId = :roomId', { roomId }) // Dùng foreign key
+      .where('booking.roomId = :roomId', { roomId })
       .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
         cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
       })

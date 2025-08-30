@@ -5,6 +5,7 @@ import {
   IsInt,
   Min,
   IsDate,
+  IsOptional,
 } from 'class-validator';
 import { StayType } from '../enums/stay-type';
 
@@ -26,4 +27,9 @@ export class BookingPreviewDto {
   @IsInt()
   @Min(1)
   numberOfGuest: number;
+
+  // Validate khi update
+  @IsUUID()
+  @IsOptional()
+  bookingId?: string;
 }

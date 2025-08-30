@@ -12,6 +12,8 @@ import {
   FindOptionsOrder,
   FindOptionsWhere,
   IsNull,
+  LessThanOrEqual,
+  MoreThanOrEqual,
   Repository,
 } from 'typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
@@ -277,30 +279,41 @@ export class BookingService {
     let updatedCustomer = existingBooking.customer;
     let newTotalAmount = existingBooking.totalAmount;
 
-    // Kiểm tra và validate thời gian nếu có thay đổi
-    const newStartTime = startTime || existingBooking.startTime;
-    const newEndTime = endTime || existingBooking.endTime;
-    const newStayType = stayType || existingBooking.stayType;
+    // --- Xác định thời gian mới ---
+    let newStartTime = startTime || existingBooking.startTime;
+    let newEndTime = endTime || existingBooking.endTime;
+    let newStayType = stayType || existingBooking.stayType;
 
-    if (startTime || endTime || stayType) {
-      this.validateBookingTime(newStartTime, newEndTime, newStayType);
-    }
+    // --- Kiểm tra có thay đổi gì không ---
+    const isTimeChanged = !!(startTime || endTime || stayType);
+    const isRoomChanged = !!(roomId && roomId !== existingBooking.room.id);
 
-    // Kiểm tra và cập nhật phòng nếu có thay đổi
-    if (roomId && roomId !== existingBooking.room.id) {
-      const room = await this.roomRepository.findOne({
-        where: { id: roomId, deleteAt: IsNull() },
-        relations: ['typeRoom'],
-      });
+    // --- Luôn validate thời gian nếu có thay đổi thời gian hoặc phòng ---
+    if (isTimeChanged || isRoomChanged) {
+      // Validate thời gian với thông tin booking gốc
+      this.validateBookingTime(
+        newStartTime,
+        newEndTime,
+        newStayType,
+        true,
+        existingBooking.startTime, // originalStartTime
+        existingBooking.endTime, // originalEndTime
+      );
 
-      if (!room) {
-        throw new NotFoundException('Không tìm thấy phòng');
+      // Lấy phòng mới nếu có thay đổi
+      if (isRoomChanged) {
+        const room = await this.roomRepository.findOne({
+          where: { id: roomId, deleteAt: IsNull() },
+          relations: ['typeRoom'],
+        });
+
+        if (!room) {
+          throw new NotFoundException('Không tìm thấy phòng');
+        }
+        updatedRoom = room;
       }
-      updatedRoom = room;
-    }
 
-    // Kiểm tra tính khả dụng của phòng nếu có thay đổi thời gian hoặc phòng
-    if (roomId !== existingBooking.room.id || startTime || endTime) {
+      // Kiểm tra phòng có khả dụng không
       const isAvailable = await this.roomService.isRoomAvailable(
         updatedRoom.id,
         newStartTime,
@@ -313,16 +326,39 @@ export class BookingService {
           'Phòng không khả dụng trong khoảng thời gian đã chọn',
         );
       }
+
+      // Tính lại tổng tiền
+      newTotalAmount = this.calculateBookingAmount(
+        updatedRoom,
+        newStartTime,
+        newEndTime,
+        newStayType,
+      );
     }
 
-    // Cập nhật thông tin khách hàng nếu có thay đổi
+    const newNumberOfGuest = numberOfGuest || existingBooking.numberOfGuest;
+
+    if (newNumberOfGuest <= 0) {
+      throw new BadRequestException('Số lượng khách phải lớn hơn 0');
+    }
+
+    // Validate số lượng khách
+    if (
+      updatedRoom.typeRoom?.maxPeople &&
+      newNumberOfGuest > updatedRoom.typeRoom.maxPeople
+    ) {
+      throw new BadRequestException(
+        `Số lượng khách (${newNumberOfGuest}) vượt quá sức chứa của phòng (${updatedRoom.typeRoom.maxPeople})`,
+      );
+    }
+
+    // --- Update customer nếu có thay đổi ---
     if (
       customerFullName ||
       customerPhone ||
       customerEmail ||
       customerIdentityCard
     ) {
-      // Nếu booking luôn có customer thì OK, nếu không bạn có thể thêm check trước
       const customerData = {
         fullName: customerFullName || existingBooking.customer?.fullName || '',
         phone: customerPhone || existingBooking.customer?.phone || '',
@@ -337,21 +373,7 @@ export class BookingService {
         await this.customerService.findOrCreateCustomer(customerData);
     }
 
-    // Tính lại tổng tiền nếu có thay đổi phòng, thời gian hoặc loại lưu trú
-    if (
-      roomId !== existingBooking.room.id ||
-      startTime ||
-      endTime ||
-      stayType
-    ) {
-      newTotalAmount = this.calculateBookingAmount(
-        updatedRoom,
-        newStartTime,
-        newEndTime,
-        newStayType,
-      );
-    }
-
+    // --- Save lại booking ---
     const updatedBooking = await this.bookingRepository.save({
       ...existingBooking,
       startTime: newStartTime,
@@ -368,40 +390,112 @@ export class BookingService {
     return updatedBooking;
   }
 
-  async previewBooking(bookingPreviewDto: BookingPreviewDto) {
-    const { roomId, startTime, endTime, stayType, numberOfGuest } =
+  async previewBooking(
+    bookingPreviewDto: BookingPreviewDto,
+    isUpdate: boolean = false,
+  ) {
+    const { roomId, startTime, endTime, stayType, numberOfGuest, bookingId } =
       bookingPreviewDto;
 
-    // validate thời gian
-    this.validateBookingTime(startTime, endTime, stayType);
+    console.log('>>> DTO nhận vào:', bookingPreviewDto);
+    console.log('>>> startTime type:', typeof startTime, startTime);
+    console.log('>>> endTime type:', typeof endTime, endTime);
+    console.log('>>> isUpdate:', isUpdate, '>>> bookingId:', bookingId);
 
-    // Tìm kiếm phòng
+    let existingBooking: Booking | undefined;
+
+    // Nếu là update thì lấy booking gốc ra
+    if (isUpdate && bookingId) {
+      existingBooking =
+        (await this.bookingRepository.findOne({
+          where: { bookingId },
+        })) ?? undefined;
+
+      console.log('>>> existingBooking:', existingBooking);
+
+      if (!existingBooking) {
+        throw new NotFoundException('Booking gốc không tồn tại');
+      }
+    }
+
+    const finalStartTime = startTime ?? existingBooking?.startTime;
+    const finalEndTime = endTime ?? existingBooking?.endTime;
+
+    console.log('>>> finalStartTime:', finalStartTime);
+    console.log('>>> finalEndTime:', finalEndTime);
+
+    // Validate thời gian
+    this.validateBookingTime(
+      finalStartTime,
+      finalEndTime,
+      stayType,
+      isUpdate,
+      existingBooking?.startTime,
+      existingBooking?.endTime,
+    );
+
+    // Tìm phòng
     const room = await this.roomRepository.findOne({
       where: { id: roomId, deleteAt: IsNull() },
       relations: ['typeRoom'],
     });
+
+    console.log('>>> room tìm được:', room);
+
     if (!room) {
       throw new NotFoundException('Không tìm thấy phòng');
     }
 
-    // kiểm tra sức chứa tối đa
+    // Kiểm tra sức chứa
     if (room.typeRoom?.maxPeople && numberOfGuest > room.typeRoom.maxPeople) {
       throw new BadRequestException(
         `Số khách tối đa cho phòng này là ${room.typeRoom.maxPeople}`,
       );
     }
 
-    // tính tổng tiền
+    // Kiểm tra phòng khả dụng
+    console.log(
+      '>>> Check availability:',
+      room.id,
+      finalStartTime,
+      finalEndTime,
+      isUpdate ? bookingId : undefined,
+    );
+    const isAvailable = await this.roomService.isRoomAvailable(
+      room.id,
+      finalStartTime,
+      finalEndTime,
+      isUpdate ? bookingId : undefined, // loại trừ chính nó khi update
+    );
+
+    console.log('>>> isAvailable:', isAvailable);
+
+    if (!isAvailable) {
+      throw new BadRequestException(
+        'Phòng không khả dụng trong khoảng thời gian đã chọn',
+      );
+    }
+
+    // Tính tổng tiền
+    console.log(
+      '>>> Tính tiền với:',
+      room.id,
+      finalStartTime,
+      finalEndTime,
+      stayType,
+    );
     const totalAmountNumber = this.calculateBookingAmount(
       room,
-      startTime,
-      endTime,
+      finalStartTime,
+      finalEndTime,
       stayType,
     );
 
+    console.log('>>> totalAmountNumber:', totalAmountNumber);
+
     return {
-      startTime,
-      endTime,
+      startTime: finalStartTime,
+      endTime: finalEndTime,
       stayType,
       numberOfGuest,
       totalAmount: totalAmountNumber,
@@ -612,7 +706,7 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
-  public async findBookingToday(
+  async findBookingToday(
     paginationQueryDto: PaginationQueryDto,
   ): Promise<Paginated<Booking>> {
     const today = new Date();
@@ -636,6 +730,39 @@ export class BookingService {
     );
   }
 
+  async getTodayOccupancySummary() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    const where = {
+      startTime: LessThanOrEqual(tomorrow), // bắt đầu trước hoặc trong hôm nay
+      endTime: MoreThanOrEqual(today), // kết thúc sau hoặc trong hôm nay
+    };
+
+    const [total, checkedIn, waiting, completed] = await Promise.all([
+      this.bookingRepository.count({ where }),
+      this.bookingRepository.count({
+        where: { ...where, bookingStatus: BookingStatus.CheckedIn },
+      }),
+      this.bookingRepository.count({
+        where: { ...where, bookingStatus: BookingStatus.Paid },
+      }),
+      this.bookingRepository.count({
+        where: { ...where, bookingStatus: BookingStatus.Completed },
+      }),
+    ]);
+
+    return {
+      total,
+      checkedIn,
+      waiting,
+      completed,
+    };
+  }
+
   public async checkIn(bookingId: string): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
@@ -651,6 +778,10 @@ export class BookingService {
       booking.bookingStatus === BookingStatus.Rejected
     ) {
       throw new BadRequestException('Đặt phòng đã bị hủy hoặc từ chối');
+    }
+
+    if (booking.bookingStatus !== BookingStatus.Paid) {
+      throw new BadRequestException('Phải thanh toán trước khi nhận phòng');
     }
 
     if (booking.actualCheckIn) {
@@ -737,6 +868,9 @@ export class BookingService {
     startTime: Date,
     endTime: Date,
     stayType: StayType,
+    isUpdate = false,
+    originalStartTime?: Date,
+    originalEndTime?: Date,
   ) {
     if (startTime >= endTime) {
       throw new BadRequestException(
@@ -744,12 +878,40 @@ export class BookingService {
       );
     }
 
-    if (startTime < new Date()) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
-      );
+    const now = new Date();
+
+    if (isUpdate) {
+      // Nếu startTime thay đổi → check quá khứ
+      if (
+        originalStartTime &&
+        startTime.getTime() !== originalStartTime.getTime() &&
+        startTime < now
+      ) {
+        throw new BadRequestException(
+          'Không thể đặt thời gian bắt đầu trong quá khứ khi cập nhật',
+        );
+      }
+
+      // Nếu endTime thay đổi → check quá khứ
+      if (
+        originalEndTime &&
+        endTime.getTime() !== originalEndTime.getTime() &&
+        endTime < now
+      ) {
+        throw new BadRequestException(
+          'Không thể đặt thời gian kết thúc trong quá khứ khi cập nhật',
+        );
+      }
+    } else {
+      // Khi tạo mới: không cho phép startTime trong quá khứ
+      if (startTime < now) {
+        throw new BadRequestException(
+          'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+        );
+      }
     }
 
+    // check duration
     const diffMs = endTime.getTime() - startTime.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
 

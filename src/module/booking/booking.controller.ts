@@ -32,8 +32,12 @@ export class BookingController {
 
   // ==== PREVIEW BOOKING ====
   @Post('preview')
-  async previewBooking(@Body() bookingPreviewDto: BookingPreviewDto) {
-    return this.bookingService.previewBooking(bookingPreviewDto);
+  async previewBooking(
+    @Body() bookingPreviewDto: BookingPreviewDto,
+    @Query('isUpdate') isUpdate?: string,
+  ) {
+    const isUpdateMode = isUpdate === 'true';
+    return this.bookingService.previewBooking(bookingPreviewDto, isUpdateMode);
   }
 
   // ==== USER BOOKING ====
@@ -99,9 +103,14 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
-  @Get('booking-today')
+  @Get('today/booking')
   async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
     return this.bookingService.findBookingToday(paginationQueryDto);
+  }
+
+  @Get('today/summary')
+  async getTodaySummary() {
+    return this.bookingService.getTodayOccupancySummary();
   }
 
   @Roles(UserRole.Staff)

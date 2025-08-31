@@ -105,7 +105,7 @@ export class BookingController {
   @Roles(UserRole.Staff)
   @Get('today/booking')
   async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
-    return this.bookingService.findBookingToday(paginationQueryDto);
+    return this.bookingService.findCheckinCheckoutToday(paginationQueryDto);
   }
 
   @Get('today/summary')

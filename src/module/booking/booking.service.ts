@@ -11,9 +11,11 @@ import {
   Between,
   FindOptionsOrder,
   FindOptionsWhere,
+  In,
   IsNull,
   LessThanOrEqual,
   MoreThanOrEqual,
+  Not,
   Repository,
 } from 'typeorm';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
@@ -397,11 +399,6 @@ export class BookingService {
     const { roomId, startTime, endTime, stayType, numberOfGuest, bookingId } =
       bookingPreviewDto;
 
-    console.log('>>> DTO nhận vào:', bookingPreviewDto);
-    console.log('>>> startTime type:', typeof startTime, startTime);
-    console.log('>>> endTime type:', typeof endTime, endTime);
-    console.log('>>> isUpdate:', isUpdate, '>>> bookingId:', bookingId);
-
     let existingBooking: Booking | undefined;
 
     // Nếu là update thì lấy booking gốc ra
@@ -411,8 +408,6 @@ export class BookingService {
           where: { bookingId },
         })) ?? undefined;
 
-      console.log('>>> existingBooking:', existingBooking);
-
       if (!existingBooking) {
         throw new NotFoundException('Booking gốc không tồn tại');
       }
@@ -420,9 +415,6 @@ export class BookingService {
 
     const finalStartTime = startTime ?? existingBooking?.startTime;
     const finalEndTime = endTime ?? existingBooking?.endTime;
-
-    console.log('>>> finalStartTime:', finalStartTime);
-    console.log('>>> finalEndTime:', finalEndTime);
 
     // Validate thời gian
     this.validateBookingTime(
@@ -440,8 +432,6 @@ export class BookingService {
       relations: ['typeRoom'],
     });
 
-    console.log('>>> room tìm được:', room);
-
     if (!room) {
       throw new NotFoundException('Không tìm thấy phòng');
     }
@@ -454,21 +444,12 @@ export class BookingService {
     }
 
     // Kiểm tra phòng khả dụng
-    console.log(
-      '>>> Check availability:',
-      room.id,
-      finalStartTime,
-      finalEndTime,
-      isUpdate ? bookingId : undefined,
-    );
     const isAvailable = await this.roomService.isRoomAvailable(
       room.id,
       finalStartTime,
       finalEndTime,
       isUpdate ? bookingId : undefined, // loại trừ chính nó khi update
     );
-
-    console.log('>>> isAvailable:', isAvailable);
 
     if (!isAvailable) {
       throw new BadRequestException(
@@ -477,21 +458,12 @@ export class BookingService {
     }
 
     // Tính tổng tiền
-    console.log(
-      '>>> Tính tiền với:',
-      room.id,
-      finalStartTime,
-      finalEndTime,
-      stayType,
-    );
     const totalAmountNumber = this.calculateBookingAmount(
       room,
       finalStartTime,
       finalEndTime,
       stayType,
     );
-
-    console.log('>>> totalAmountNumber:', totalAmountNumber);
 
     return {
       startTime: finalStartTime,
@@ -706,7 +678,7 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
-  async findBookingToday(
+  async findCheckinCheckoutToday(
     paginationQueryDto: PaginationQueryDto,
   ): Promise<Paginated<Booking>> {
     const today = new Date();
@@ -715,11 +687,20 @@ export class BookingService {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
-    const where = {
-      startTime: Between(today, tomorrow),
-    };
+    const excludeStatus = [BookingStatus.Cancelled, BookingStatus.Rejected];
 
-    const relations = ['room', 'user'];
+    const where = [
+      {
+        startTime: Between(today, tomorrow),
+        bookingStatus: Not(In(excludeStatus)),
+      },
+      {
+        endTime: Between(today, tomorrow),
+        bookingStatus: Not(In(excludeStatus)),
+      },
+    ];
+
+    const relations = ['room', 'user', 'room.typeRoom', 'customer'];
 
     return await this.paginationProvider.paginateQuery(
       paginationQueryDto,
@@ -737,9 +718,12 @@ export class BookingService {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
 
+    const excludeStatus = [BookingStatus.Cancelled, BookingStatus.Rejected];
+
     const where = {
-      startTime: LessThanOrEqual(tomorrow), // bắt đầu trước hoặc trong hôm nay
-      endTime: MoreThanOrEqual(today), // kết thúc sau hoặc trong hôm nay
+      startTime: LessThanOrEqual(tomorrow),
+      endTime: MoreThanOrEqual(today),
+      bookingStatus: Not(In(excludeStatus)),
     };
 
     const [total, checkedIn, waiting, completed] = await Promise.all([
@@ -748,7 +732,10 @@ export class BookingService {
         where: { ...where, bookingStatus: BookingStatus.CheckedIn },
       }),
       this.bookingRepository.count({
-        where: { ...where, bookingStatus: BookingStatus.Paid },
+        where: [
+          { ...where, bookingStatus: BookingStatus.Paid },
+          { ...where, bookingStatus: BookingStatus.Unpaid },
+        ],
       }),
       this.bookingRepository.count({
         where: { ...where, bookingStatus: BookingStatus.Completed },
@@ -904,7 +891,7 @@ export class BookingService {
       }
     } else {
       // Khi tạo mới: không cho phép startTime trong quá khứ
-      if (startTime < now) {
+      if (startTime.getTime() <= now.getTime()) {
         throw new BadRequestException(
           'Thời gian bắt đầu không được là thời điểm trong quá khứ',
         );

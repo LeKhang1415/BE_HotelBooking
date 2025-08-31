@@ -5,7 +5,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Room } from './entities/room.entity';
-import { In, IsNull, MoreThan, Not, Repository } from 'typeorm';
+import {
+  In,
+  IsNull,
+  MoreThan,
+  Not,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { TypeRoom } from '../type-room/entities/type-room.entity';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { CreateRoomDto } from './dtos/create-room.dto';
@@ -212,6 +219,54 @@ export class RoomService {
     return await queryBuilder.getMany();
   }
 
+  private getEffectiveEndTime(booking: {
+    endTime: Date;
+    actualCheckOut?: Date;
+  }): Date {
+    // Nếu đã check-out thực tế, sử dụng actualCheckOut
+    // Nếu chưa, sử dụng endTime dự kiến
+    return booking.actualCheckOut || booking.endTime;
+  }
+
+  private createTimeConflictCondition(): string {
+    return `(
+    (booking.actualCheckOut IS NULL AND booking.startTime < :endTime AND booking.endTime > :startTime)
+    OR 
+    (booking.actualCheckOut IS NOT NULL AND booking.startTime < :endTime AND booking.actualCheckOut > :startTime)
+  )`;
+  }
+
+  private async getConflictingBookings(
+    startTime: Date,
+    endTime: Date,
+    roomId?: string,
+    excludeBookingId?: string,
+  ): Promise<any[]> {
+    let query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .select('booking.room.id', 'roomId')
+      .innerJoin('booking.room', 'room')
+      .where('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
+        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
+      })
+      .andWhere('room.deleteAt IS NULL')
+      .andWhere(this.createTimeConflictCondition())
+      .setParameters({ startTime, endTime });
+
+    if (roomId) {
+      query = query.andWhere('booking.roomId = :roomId', { roomId });
+    }
+
+    if (excludeBookingId) {
+      query = query.andWhere('booking.bookingId != :excludeBookingId', {
+        excludeBookingId,
+      });
+    }
+
+    return await query.getRawMany();
+  }
+
+  // Main functions
   async findAvailableRoomsInTime(
     findAvailableRoomDto: FindAvailableRoomDto,
   ): Promise<Paginated<Room>> {
@@ -231,67 +286,23 @@ export class RoomService {
     const end = new Date(endTime);
 
     // Validate thời gian
-    if (start >= end) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu phải trước thời gian kết thúc',
-      );
-    }
+    this.validateTimeRange(start, end);
 
-    if (start < new Date()) {
-      throw new BadRequestException(
-        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
-      );
-    }
-
-    const conflictingBookings = await this.bookingRepository
-      .createQueryBuilder('booking')
-      .select('booking.room.id', 'roomId')
-      .innerJoin('booking.room', 'room')
-      .where('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
-        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
-      })
-      .andWhere('room.deleteAt IS NULL')
-      .andWhere(
-        'booking.startTime < :endTime AND booking.endTime > :startTime',
-        { startTime: start, endTime: end },
-      )
-      .getRawMany();
-
+    // Lấy danh sách phòng bị conflict
+    const conflictingBookings = await this.getConflictingBookings(start, end);
     const unavailableRoomIds = conflictingBookings.map(
       (booking) => booking.roomId,
     );
 
-    let queryBuilder = this.roomRepository
-      .createQueryBuilder('room')
-      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
-      .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE })
-      .andWhere('room.deleteAt IS NULL')
-      .andWhere('typeRoom.deleteAt IS NULL');
-
-    if (unavailableRoomIds.length > 0) {
-      queryBuilder.andWhere('room.id NOT IN (:...unavailableRoomIds)', {
-        unavailableRoomIds,
-      });
-    }
-
-    if (typeRoomId) {
-      queryBuilder.andWhere('typeRoom.id = :typeRoomId', { typeRoomId });
-    }
-
-    if (minPrice != null && maxPrice != null && priceType) {
-      const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
-
-      queryBuilder.andWhere(`${priceField} BETWEEN :minPrice AND :maxPrice`, {
-        minPrice,
-        maxPrice,
-      });
-    }
-
-    if (numberOfPeople != null) {
-      queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
-        numberOfPeople,
-      });
-    }
+    // Build query cho available rooms
+    const queryBuilder = this.buildAvailableRoomsQuery(
+      unavailableRoomIds,
+      typeRoomId,
+      minPrice,
+      maxPrice,
+      priceType,
+      numberOfPeople,
+    );
 
     return await this.paginationProvider.paginateQueryBuilder(
       pagination,
@@ -305,35 +316,18 @@ export class RoomService {
     endTime: Date,
     excludeBookingId?: string,
   ): Promise<boolean> {
-    // check room tồn tại
-    const room = await this.roomRepository.findOne({
-      where: { id: roomId, deleteAt: IsNull() },
-    });
+    // Validate room exists
+    await this.validateRoomExists(roomId);
 
-    if (!room) {
-      throw new NotFoundException('Phòng không tồn tại hoặc đã bị xóa');
-    }
+    // Check for conflicts
+    const conflictingBookings = await this.getConflictingBookings(
+      startTime,
+      endTime,
+      roomId,
+      excludeBookingId,
+    );
 
-    // check conflict bookings
-    let query = this.bookingRepository
-      .createQueryBuilder('booking')
-      .where('booking.roomId = :roomId', { roomId })
-      .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
-        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
-      })
-      .andWhere(
-        'booking.startTime < :endTime AND booking.endTime > :startTime',
-        { startTime, endTime },
-      );
-
-    if (excludeBookingId) {
-      query = query.andWhere('booking.bookingId != :excludeBookingId', {
-        excludeBookingId,
-      });
-    }
-
-    const conflictingBooking = await query.getOne();
-    return !conflictingBooking;
+    return conflictingBookings.length === 0;
   }
 
   async checkAvailability(
@@ -352,7 +346,42 @@ export class RoomService {
     return { roomId, available };
   }
 
-  public async remove(id: string): Promise<{ deleted: boolean; id: string }> {
+  async getBookingEffectiveEndTime(bookingId: string): Promise<Date> {
+    const booking = await this.bookingRepository.findOne({
+      where: { bookingId },
+      select: ['endTime', 'actualCheckOut'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking không tồn tại');
+    }
+
+    return this.getEffectiveEndTime(booking);
+  }
+
+  async getRoomOccupiedInTime(
+    roomId: string,
+    fromDate: Date,
+    toDate: Date,
+  ): Promise<Array<{ start: Date; end: Date }>> {
+    const bookings = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .where('booking.roomId = :roomId', { roomId })
+      .andWhere('booking.bookingStatus NOT IN (:...cancelledStatuses)', {
+        cancelledStatuses: [BookingStatus.Cancelled, BookingStatus.Rejected],
+      })
+      .andWhere('booking.startTime <= :toDate AND booking.endTime >= :fromDate')
+      .setParameters({ fromDate, toDate })
+      .orderBy('booking.startTime', 'ASC')
+      .getMany();
+
+    return bookings.map((booking) => ({
+      start: booking.startTime,
+      end: this.getEffectiveEndTime(booking),
+    }));
+  }
+
+  async remove(id: string): Promise<{ deleted: boolean; id: string }> {
     const room = await this.findOne(id);
 
     // Kiểm tra room có booking active không
@@ -375,6 +404,74 @@ export class RoomService {
 
     await this.roomRepository.softDelete(id);
     return { deleted: true, id };
+  }
+
+  private validateTimeRange(startTime: Date, endTime: Date): void {
+    if (startTime >= endTime) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu phải trước thời gian kết thúc',
+      );
+    }
+
+    if (startTime < new Date()) {
+      throw new BadRequestException(
+        'Thời gian bắt đầu không được là thời điểm trong quá khứ',
+      );
+    }
+  }
+
+  private async validateRoomExists(roomId: string): Promise<Room> {
+    const room = await this.roomRepository.findOne({
+      where: { id: roomId, deleteAt: IsNull() },
+    });
+
+    if (!room) {
+      throw new NotFoundException('Phòng không tồn tại hoặc đã bị xóa');
+    }
+
+    return room;
+  }
+
+  private buildAvailableRoomsQuery(
+    unavailableRoomIds: string[],
+    typeRoomId?: string,
+    minPrice?: number,
+    maxPrice?: number,
+    priceType?: string,
+    numberOfPeople?: number,
+  ): SelectQueryBuilder<Room> {
+    let queryBuilder = this.roomRepository
+      .createQueryBuilder('room')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .where('room.roomStatus = :status', { status: RoomStatus.ACTIVE })
+      .andWhere('room.deleteAt IS NULL')
+      .andWhere('typeRoom.deleteAt IS NULL');
+
+    if (unavailableRoomIds.length > 0) {
+      queryBuilder.andWhere('room.id NOT IN (:...unavailableRoomIds)', {
+        unavailableRoomIds,
+      });
+    }
+
+    if (typeRoomId) {
+      queryBuilder.andWhere('typeRoom.id = :typeRoomId', { typeRoomId });
+    }
+
+    if (minPrice != null && maxPrice != null && priceType) {
+      const priceField = `room.pricePer${priceType.charAt(0).toUpperCase() + priceType.slice(1)}`;
+      queryBuilder.andWhere(`${priceField} BETWEEN :minPrice AND :maxPrice`, {
+        minPrice,
+        maxPrice,
+      });
+    }
+
+    if (numberOfPeople != null) {
+      queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
+        numberOfPeople,
+      });
+    }
+
+    return queryBuilder;
   }
 
   private async validateStatusChange(

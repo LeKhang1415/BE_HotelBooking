@@ -83,19 +83,11 @@ export class Booking {
   @OneToMany(() => Payment, (payment) => payment.booking, { cascade: true })
   payments: Payment[];
 
-  @Column({
-    name: 'total_amount',
-    type: 'decimal',
-    precision: 10,
-    scale: 2,
-    default: 0,
-  })
+  @Column({ type: 'int', default: 0, nullable: true })
   totalAmount: number;
 
   @Column({
-    type: 'decimal',
-    precision: 12,
-    scale: 2,
+    type: 'int',
     default: 0,
     nullable: true,
   })

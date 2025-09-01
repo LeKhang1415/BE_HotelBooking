@@ -156,6 +156,18 @@ export class BookingController {
   }
 
   @Roles(UserRole.Staff)
+  @Post('check-in/:bookingId')
+  async checkIn(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
+    return this.bookingService.checkIn(bookingId);
+  }
+
+  @Roles(UserRole.Staff)
+  @Post('check-out/:bookingId')
+  async checkOut(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
+    return this.bookingService.checkOut(bookingId);
+  }
+
+  @Roles(UserRole.Staff)
   @Get(':bookingId')
   async findOne(@Param('bookingId', new ParseUUIDPipe()) bookingId: string) {
     return this.bookingService.findOne(bookingId);

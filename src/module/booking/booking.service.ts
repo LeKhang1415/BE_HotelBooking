@@ -39,6 +39,7 @@ import {
   UpdateBookingDto,
   UpdateMyBookingDto,
 } from './dtos/update-booking.dto';
+import { PaymentStatus } from '../payment/enums/payment-status.enum';
 
 @Injectable()
 export class BookingService {
@@ -691,11 +692,8 @@ export class BookingService {
 
     const where = [
       {
-        startTime: Between(today, tomorrow),
-        bookingStatus: Not(In(excludeStatus)),
-      },
-      {
-        endTime: Between(today, tomorrow),
+        startTime: LessThanOrEqual(tomorrow),
+        endTime: MoreThanOrEqual(today),
         bookingStatus: Not(In(excludeStatus)),
       },
     ];
@@ -750,7 +748,7 @@ export class BookingService {
     };
   }
 
-  public async checkIn(bookingId: string): Promise<Booking> {
+  async checkIn(bookingId: string): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
       relations: ['room', 'user'],
@@ -794,10 +792,10 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
-  public async checkOut(bookingId: string): Promise<Booking> {
+  async checkOut(bookingId: string): Promise<Booking> {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
-      relations: ['room', 'user'],
+      relations: ['room', 'user', 'payments'],
     });
 
     if (!booking) {
@@ -822,7 +820,28 @@ export class BookingService {
     const now = new Date();
 
     booking.actualCheckOut = now;
-    booking.bookingStatus = BookingStatus.Completed;
+
+    // --- TÍNH PHỤ PHÍ CHECK-OUT TRỄ ---
+    const lateFee = this.calculateLateFee(booking, now);
+
+    if (lateFee > 0) {
+      booking.extraCharges = (booking.extraCharges || 0) + lateFee;
+      booking.totalAmount = Number(booking.totalAmount) + lateFee;
+    }
+
+    // --- XÁC ĐỊNH TRẠNG THÁI ---
+    const totalPaid =
+      booking.payments
+        ?.filter((p) => p.status === PaymentStatus.SUCCESS)
+        .reduce((sum, p) => sum + p.amount, 0) || 0;
+
+    if (totalPaid < booking.totalAmount) {
+      // Nếu chưa thanh toán đủ (ví dụ phụ phí chưa trả)
+      booking.bookingStatus = BookingStatus.CheckedOutPendingPayment;
+    } else {
+      // Nếu đã thanh toán hết
+      booking.bookingStatus = BookingStatus.Completed;
+    }
 
     return await this.bookingRepository.save(booking);
   }
@@ -974,5 +993,16 @@ export class BookingService {
 
     // Thời gian >= 12 tiếng, tính theo ngày
     return billingDays * room.pricePerDay;
+  }
+  private calculateLateFee(booking: Booking, now: Date): number {
+    if (now <= booking.endTime) return 0;
+
+    const lateMs = now.getTime() - booking.endTime.getTime();
+    const lateHours = Math.ceil(lateMs / (1000 * 60 * 60)); // làm tròn lên theo giờ
+
+    //  20% giá phòng mỗi giờ trễ
+    const lateFeePerHour = Number(booking.room.pricePerHour) * 0.2;
+
+    return lateHours * lateFeePerHour;
   }
 }

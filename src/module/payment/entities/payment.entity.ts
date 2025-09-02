@@ -1,5 +1,6 @@
 import { Booking } from 'src/module/booking/entities/booking.entity';
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
@@ -33,6 +34,9 @@ export class Payment {
 
   @Column({ type: 'enum', enum: PaymentType })
   paymentType: PaymentType;
+
+  @Column({ nullable: true })
+  providerTransactionId?: string; // Mã giao dịch từ SePay
 
   @ManyToOne(() => Booking, (booking) => booking.payments)
   @JoinColumn({ name: 'booking_id' })

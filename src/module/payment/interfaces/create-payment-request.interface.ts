@@ -3,6 +3,7 @@ export interface CreatePaymentRequest {
   orderId: string; // mã đơn hàng/booking
   description: string; // nội dung chuyển khoản
   returnUrl?: string; // url redirect về sau khi thanh toán
+  paymentUrl?: string;
   customerInfo?: {
     name?: string;
     phone?: string;

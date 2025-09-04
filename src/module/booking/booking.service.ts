@@ -554,7 +554,7 @@ export class BookingService {
   public async findOne(id: string): Promise<Booking> {
     const room = await this.bookingRepository.findOne({
       where: { bookingId: id },
-      relations: ['room', 'user', 'customer'],
+      relations: ['room', 'room.typeRoom', 'user', 'customer', 'payments'],
     });
 
     if (!room) {
@@ -994,7 +994,7 @@ export class BookingService {
     // Thời gian >= 12 tiếng, tính theo ngày
     return billingDays * room.pricePerDay;
   }
-  private calculateLateFee(booking: Booking, now: Date): number {
+  public calculateLateFee(booking: Booking, now: Date): number {
     if (now <= booking.endTime) return 0;
 
     const lateMs = now.getTime() - booking.endTime.getTime();

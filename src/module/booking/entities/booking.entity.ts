@@ -50,7 +50,12 @@ export class Booking {
   @Column({ type: 'int' })
   numberOfGuest: number;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @ManyToOne(() => User, (user) => user.bookings, {
+    nullable: true,
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+    eager: true,
+  })
   createdBy?: User;
 
   @ManyToOne(() => User, (user) => user.bookings, {

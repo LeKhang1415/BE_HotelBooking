@@ -10,9 +10,7 @@ export default registerAs('vnpay', () => ({
   returnUrl:
     process.env.VNPAY_RETURN_URL ||
     'http://localhost:3000/payment/vnpay/return',
-  // Frontend URL để redirect sau khi xử lý
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-  ipnUrl: process.env.VNPAY_IPN_URL,
   apiUrl:
     process.env.VNPAY_API_URL ||
     'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction',

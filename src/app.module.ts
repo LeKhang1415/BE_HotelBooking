@@ -21,14 +21,13 @@ import { UploadsModule } from './module/uploads/uploads.module';
 import { PaymentModule } from './module/payment/payment.module';
 import { CustomerModule } from './module/customer/customer.module';
 import appConfig from './config/app.config';
-import sepayConfig from './config/sepay.config';
 import vnpayConfig from './config/vnpay.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, sepayConfig, vnpayConfig],
+      load: [databaseConfig, appConfig, vnpayConfig],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],

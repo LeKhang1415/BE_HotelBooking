@@ -32,7 +32,7 @@ export class PaymentService {
   ) {}
 
   // Tạo payment cho online booking
-  async createOnlinePayment(bookingId: string, ipAddr: string) {
+  async createOnlineBookingPayment(bookingId: string, ipAddr: string) {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
     });
@@ -81,11 +81,16 @@ export class PaymentService {
   }
 
   // Tạo payment cho walk-in
-  async createWalkInPayment(bookingId: string, paymentMethod: PaymentMethod) {
+  async createWalkInBookingPayment(bookingId: string) {
     const booking = await this.bookingRepository.findOne({
       where: { bookingId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
+
+    // Nếu booking đã thanh toán thì không cần tạo thêm payment nữa
+    if (booking.bookingStatus === BookingStatus.Paid) {
+      throw new BadRequestException('Booking đã được thanh toán');
+    }
 
     const paymentCode = crypto.randomUUID().slice(0, 12).replace(/-/g, '');
 
@@ -93,7 +98,7 @@ export class PaymentService {
       paymentCode,
       booking,
       amount: booking.totalAmount,
-      paymentMethod,
+      paymentMethod: PaymentMethod.Cash,
       paymentType: PaymentType.BOOKING_PAYMENT,
       status: PaymentStatus.PENDING,
     });
@@ -102,7 +107,7 @@ export class PaymentService {
   }
 
   // Xác nhận thanh toán walk-in (cash/card tại quầy)
-  async confirmWalkInPayment(paymentCode: string) {
+  async confirmWalkInBookingPayment(paymentCode: string): Promise<Payment> {
     const payment = await this.paymentRepository.findOne({
       where: { paymentCode },
       relations: ['booking'],
@@ -112,22 +117,24 @@ export class PaymentService {
       throw new NotFoundException('Payment not found');
     }
 
+    if (payment.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Payment already confirmed or invalid');
+    }
+
+    // cập nhật trạng thái thanh toán
     payment.status = PaymentStatus.SUCCESS;
     payment.paidAt = new Date();
-    payment.amount = payment.booking.totalAmount;
 
     await this.paymentRepository.save(payment);
 
-    // Cập nhật booking status
-    const booking = payment.booking;
-    booking.bookingStatus = BookingStatus.Paid;
-    await this.bookingRepository.save(booking);
+    // cập nhật trạng thái booking
+    if (payment.booking) {
+      payment.booking.bookingStatus = BookingStatus.Paid;
+      await this.bookingRepository.save(payment.booking);
+    }
 
     return payment;
   }
-
-  // Calculate late checkout fee
-  async calculateLateCheckoutFee(bookingId: string, actualCheckOut: Date) {}
 
   async handleVNPayReturn(query: any): Promise<string> {
     console.log('VNPay return query:', query);

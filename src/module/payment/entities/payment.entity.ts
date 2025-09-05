@@ -33,7 +33,7 @@ export class Payment {
   status: PaymentStatus;
 
   @Column({ type: 'enum', enum: PaymentType })
-  paymentType: PaymentType; // Mã giao dịch từ SePay
+  paymentType: PaymentType;
 
   @ManyToOne(() => Booking, (booking) => booking.payments)
   @JoinColumn({ name: 'booking_id' })

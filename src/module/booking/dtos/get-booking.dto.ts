@@ -4,8 +4,9 @@ import { BookingStatus } from '../enums/booking-status';
 import { BookingType } from '../enums/booking-type';
 import { StayType } from '../enums/stay-type';
 import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.dto';
+import { IntersectionType } from '@nestjs/mapped-types';
 
-export class GetAllBookingDto extends PaginationQueryDto {
+export class GetAllBookingBaseDto {
   @IsOptional()
   @IsEnum(BookingStatus)
   status?: BookingStatus;
@@ -38,3 +39,8 @@ export class GetAllBookingDto extends PaginationQueryDto {
   @Type(() => Date)
   bookingDateTo?: Date;
 }
+
+export class GetAllBookingDto extends IntersectionType(
+  PaginationQueryDto,
+  GetAllBookingBaseDto,
+) {}

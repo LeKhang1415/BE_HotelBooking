@@ -22,6 +22,7 @@ import { PaymentModule } from './module/payment/payment.module';
 import { CustomerModule } from './module/customer/customer.module';
 import appConfig from './config/app.config';
 import vnpayConfig from './config/vnpay.config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import vnpayConfig from './config/vnpay.config';
       isGlobal: true,
       load: [databaseConfig, appConfig, vnpayConfig],
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

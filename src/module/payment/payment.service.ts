@@ -2,10 +2,16 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Payment } from './entities/payment.entity';
-import { Repository } from 'typeorm';
+import {
+  FindOptionsOrder,
+  FindOptionsWhere,
+  LessThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Booking } from '../booking/entities/booking.entity';
 import { PaymentMethod } from './enums/payment-method.enum';
@@ -15,9 +21,13 @@ import { VNPayProvider } from './providers/vnpay.provider';
 import { BookingStatus } from '../booking/enums/booking-status';
 import vnpayConfig from 'src/config/vnpay.config';
 import { ConfigType } from '@nestjs/config';
+import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
+import { GetAllPaymentDto } from './dtos/get-payment.dto';
+import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 
 @Injectable()
 export class PaymentService {
+  private readonly logger = new Logger(PaymentService.name);
   constructor(
     @InjectRepository(Payment)
     private paymentRepository: Repository<Payment>,
@@ -26,6 +36,8 @@ export class PaymentService {
     private bookingRepository: Repository<Booking>,
 
     private readonly vnpayProvider: VNPayProvider,
+
+    private readonly paginationProvider: PaginationProvider,
 
     @Inject(vnpayConfig.KEY)
     private readonly vnpayConfiguration: ConfigType<typeof vnpayConfig>,
@@ -169,6 +181,72 @@ export class PaymentService {
       await this.paymentRepository.save(payment);
 
       return `${this.vnpayConfiguration.frontendUrl}/payment-fail?orderId=${query.vnp_TxnRef}`;
+    }
+  }
+
+  async getAllPayment(
+    getAllPaymentDto: GetAllPaymentDto,
+  ): Promise<Paginated<Payment>> {
+    const { status, method, type, bookingId, ...pagination } = getAllPaymentDto;
+
+    const where: FindOptionsWhere<Payment> = {};
+
+    // Filter by status
+    if (status) {
+      where.status = status as PaymentStatus;
+    }
+
+    // Filter by payment method
+    if (method) {
+      where.paymentMethod = method as PaymentMethod;
+    }
+
+    // Filter by payment type
+    if (type) {
+      where.paymentType = type as PaymentType;
+    }
+
+    // Filter by booking
+    if (bookingId) {
+      where.booking = { bookingId };
+    }
+
+    const relations = ['booking', 'booking.user', 'booking.room'];
+    const order: FindOptionsOrder<Payment> = {
+      createdAt: 'DESC',
+      paidAt: 'DESC',
+    };
+
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.paymentRepository,
+      where,
+      order,
+      relations,
+    );
+  }
+
+  async autoExpirePendingPayments(): Promise<void> {
+    const now = new Date();
+    const fifteenMinutes = new Date(now.getTime() - 15 * 60 * 1000);
+
+    const pendingPayments = await this.paymentRepository.find({
+      where: {
+        status: PaymentStatus.PENDING,
+        createdAt: LessThanOrEqual(fifteenMinutes),
+      },
+      relations: ['booking'],
+    });
+
+    if (!pendingPayments.length) return;
+
+    for (const payment of pendingPayments) {
+      payment.status = PaymentStatus.FAILED;
+      await this.paymentRepository.save(payment);
+
+      this.logger.warn(
+        `Payment ${payment.paymentId} => FAILED (pending quá 15 phút không xử lý)`,
+      );
     }
   }
 }

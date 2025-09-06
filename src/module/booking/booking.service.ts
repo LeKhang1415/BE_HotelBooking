@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -43,6 +44,8 @@ import { PaymentStatus } from '../payment/enums/payment-status.enum';
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
+
   constructor(
     @InjectRepository(Booking)
     private readonly bookingRepository: Repository<Booking>,
@@ -820,28 +823,7 @@ export class BookingService {
     const now = new Date();
 
     booking.actualCheckOut = now;
-
-    // --- TÍNH PHỤ PHÍ CHECK-OUT TRỄ ---
-    const lateFee = this.calculateLateFee(booking, now);
-
-    if (lateFee > 0) {
-      booking.extraCharges = (booking.extraCharges || 0) + lateFee;
-      booking.totalAmount = Number(booking.totalAmount) + lateFee;
-    }
-
-    // --- XÁC ĐỊNH TRẠNG THÁI ---
-    const totalPaid =
-      booking.payments
-        ?.filter((p) => p.status === PaymentStatus.SUCCESS)
-        .reduce((sum, p) => sum + p.amount, 0) || 0;
-
-    if (totalPaid < booking.totalAmount) {
-      // Nếu chưa thanh toán đủ (ví dụ phụ phí chưa trả)
-      booking.bookingStatus = BookingStatus.CheckedOutPendingPayment;
-    } else {
-      // Nếu đã thanh toán hết
-      booking.bookingStatus = BookingStatus.Completed;
-    }
+    booking.bookingStatus = BookingStatus.Completed;
 
     return await this.bookingRepository.save(booking);
   }
@@ -868,6 +850,61 @@ export class BookingService {
     booking.bookingStatus = BookingStatus.Paid;
 
     return await this.bookingRepository.save(booking);
+  }
+
+  async autoNoShowCheck(): Promise<void> {
+    const now = new Date();
+    const thirtyMinutesAgo = new Date(now.getTime() - 1 * 60 * 1000);
+
+    const bookings = await this.bookingRepository.find({
+      where: {
+        bookingStatus: BookingStatus.Unpaid,
+        actualCheckIn: IsNull(),
+        startTime: LessThanOrEqual(thirtyMinutesAgo),
+      },
+      relations: ['room', 'customer'],
+    });
+
+    if (!bookings.length) return;
+
+    for (const booking of bookings) {
+      booking.bookingStatus = BookingStatus.NoShow;
+      booking.actualCheckOut = now;
+
+      await this.bookingRepository.save(booking);
+
+      this.logger.warn(
+        `Booking ${booking.bookingId} => NoShow (quá 30 phút sau giờ bắt đầu mà chưa check-in & chưa thanh toán)`,
+      );
+    }
+  }
+
+  async autoCheckout(): Promise<void> {
+    const now = new Date();
+    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+
+    // Tìm các booking đã check-in, chưa checkout, endTime <= now - 30 phút
+    const bookings = await this.bookingRepository.find({
+      where: {
+        bookingStatus: BookingStatus.CheckedIn,
+        actualCheckOut: IsNull(),
+        endTime: LessThanOrEqual(thirtyMinutesAgo),
+      },
+      relations: ['room', 'user'],
+    });
+
+    if (!bookings.length) return;
+
+    for (const booking of bookings) {
+      booking.actualCheckOut = now;
+      booking.bookingStatus = BookingStatus.Completed;
+
+      await this.bookingRepository.save(booking);
+
+      this.logger.warn(
+        `Booking ${booking.bookingId} đã auto checkout (quá 30 phút sau giờ kết thúc)`,
+      );
+    }
   }
 
   private validateBookingTime(
@@ -993,16 +1030,5 @@ export class BookingService {
 
     // Thời gian >= 12 tiếng, tính theo ngày
     return billingDays * room.pricePerDay;
-  }
-  public calculateLateFee(booking: Booking, now: Date): number {
-    if (now <= booking.endTime) return 0;
-
-    const lateMs = now.getTime() - booking.endTime.getTime();
-    const lateHours = Math.ceil(lateMs / (1000 * 60 * 60)); // làm tròn lên theo giờ
-
-    //  20% giá phòng mỗi giờ trễ
-    const lateFeePerHour = Number(booking.room.pricePerHour) * 0.2;
-
-    return lateHours * lateFeePerHour;
   }
 }

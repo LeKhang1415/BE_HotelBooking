@@ -5,10 +5,16 @@ import { AuthType } from '../auth/enums/auth-type.enum';
 import { Response } from 'express';
 import { Roles } from 'src/decorators/roles.decorator';
 import { UserRole } from '../users/enum/user-role.enum';
+import { GetAllPaymentDto } from './dtos/get-payment.dto';
 
 @Controller('payment')
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
+
+  @Get('all')
+  async getAllPayments(@Query() query: GetAllPaymentDto) {
+    return this.paymentService.getAllPayment(query);
+  }
 
   @Post('online/:bookingId')
   async createOnlinePayment(

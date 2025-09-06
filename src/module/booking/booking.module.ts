@@ -9,9 +9,10 @@ import { RoomModule } from '../room/room.module';
 import { User } from '../users/entities/user.entity';
 import { Customer } from '../customer/entities/customer.entity';
 import { CustomerModule } from '../customer/customer.module';
+import { BookingCron } from 'src/cron/booking-cron';
 
 @Module({
-  providers: [BookingService],
+  providers: [BookingService, BookingCron],
   controllers: [BookingController],
   imports: [
     TypeOrmModule.forFeature([Room, Booking, User, Customer]),

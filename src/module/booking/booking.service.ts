@@ -852,9 +852,9 @@ export class BookingService {
     return await this.bookingRepository.save(booking);
   }
 
-  async autoNoShowCheck(): Promise<void> {
+  async autoNoShowCheck(): Promise<Booking[]> {
     const now = new Date();
-    const thirtyMinutesAgo = new Date(now.getTime() - 1 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
     const bookings = await this.bookingRepository.find({
       where: {
@@ -865,7 +865,9 @@ export class BookingService {
       relations: ['room', 'customer'],
     });
 
-    if (!bookings.length) return;
+    if (!bookings.length) return [];
+
+    const updated: Booking[] = [];
 
     for (const booking of bookings) {
       booking.bookingStatus = BookingStatus.NoShow;
@@ -876,10 +878,14 @@ export class BookingService {
       this.logger.warn(
         `Booking ${booking.bookingId} => NoShow (quá 30 phút sau giờ bắt đầu mà chưa check-in & chưa thanh toán)`,
       );
+
+      updated.push(booking);
     }
+
+    return updated;
   }
 
-  async autoCheckout(): Promise<void> {
+  async autoCheckout(): Promise<Booking[]> {
     const now = new Date();
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
@@ -893,7 +899,9 @@ export class BookingService {
       relations: ['room', 'user'],
     });
 
-    if (!bookings.length) return;
+    if (!bookings.length) return [];
+
+    const updated: Booking[] = [];
 
     for (const booking of bookings) {
       booking.actualCheckOut = now;
@@ -904,7 +912,11 @@ export class BookingService {
       this.logger.warn(
         `Booking ${booking.bookingId} đã auto checkout (quá 30 phút sau giờ kết thúc)`,
       );
+
+      updated.push(booking);
     }
+
+    return updated;
   }
 
   private validateBookingTime(

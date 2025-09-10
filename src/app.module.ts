@@ -23,6 +23,8 @@ import { CustomerModule } from './module/customer/customer.module';
 import appConfig from './config/app.config';
 import vnpayConfig from './config/vnpay.config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ChatModule } from './module/chat/chat.module';
+import { WsAccessTokenGuard } from './guards/ws-access-token.guard';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     UploadsModule,
     PaymentModule,
     CustomerModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
@@ -68,6 +71,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     },
     AccessTokenGuard,
     RolesGuard,
+    WsAccessTokenGuard,
   ],
 })
 export class AppModule {}

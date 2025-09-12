@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,6 +16,8 @@ import jwtConfig from 'src/config/jwt.config';
 export class WsAccessTokenGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
+
+    @Inject(jwtConfig.KEY)
     private readonly jwtConfiguration: ConfigType<typeof jwtConfig>,
   ) {}
 

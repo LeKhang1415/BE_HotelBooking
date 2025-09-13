@@ -7,14 +7,19 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Conversation } from './entities/conversation.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { FindOptionsOrder, FindOptionsWhere, ILike, Repository } from 'typeorm';
 import { Message } from './entities/message.entity';
 import { MessageStatus } from './enums/message-status.enum';
+import { ListConversationsDto } from './dtos/list-conversation.dto';
+import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
+import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 
 @Injectable()
 export class ChatService {
   constructor(
     private readonly config: ConfigService,
+
+    private readonly paginationProvider: PaginationProvider,
 
     @InjectRepository(Conversation)
     private readonly conversationRepository: Repository<Conversation>,
@@ -29,29 +34,36 @@ export class ChatService {
 
     return 'test@gmail.com';
   }
+
   async getOrCreateConversation(userEmail: string) {
     const adminEmail = await this.getAdminEmail();
 
-    const now = new Date();
+    if (userEmail === adminEmail) {
+      throw new BadRequestException(
+        'Admin cannot create conversation with themselves',
+      );
+    }
 
+    const now = new Date();
     const conversation = await this.conversationRepository.findOne({
-      where: [
-        { userEmail, adminEmail },
-        { userEmail: adminEmail, adminEmail: userEmail },
-      ],
+      where: {
+        userEmail: userEmail,
+        adminEmail: adminEmail,
+      },
     });
 
     if (conversation) return conversation;
 
     const newConversation = this.conversationRepository.create({
-      userEmail,
-      adminEmail,
+      userEmail: userEmail,
+      adminEmail: adminEmail,
       unreadForAdmin: 0,
       unreadForUser: 0,
       lastMessageText: '',
       lastMessageFromEmail: '',
       lastMessageAt: now,
     });
+
     return this.conversationRepository.save(newConversation);
   }
 
@@ -143,6 +155,37 @@ export class ChatService {
     return newMessage;
   }
 
+  async listConversationsForAdmin(
+    listConversationsDto: ListConversationsDto,
+  ): Promise<Paginated<Conversation>> {
+    const { search, ...pagination } = listConversationsDto;
+
+    const adminEmail = await this.getAdminEmail();
+
+    // Build where condition
+    const where: FindOptionsWhere<Conversation> = {
+      adminEmail,
+    };
+
+    if (search) {
+      where.userEmail = ILike(`%${search}%`); // Tìm kiếm email user theo từ khóa
+    }
+
+    //ưu tiên lastMessageAt, sau đó updatedAt
+    const order: FindOptionsOrder<Conversation> = {
+      lastMessageAt: 'DESC',
+      updatedAt: 'DESC',
+    };
+
+    // Gọi provider paginateQuery giống như getAllBooking
+    return await this.paginationProvider.paginateQuery(
+      pagination,
+      this.conversationRepository,
+      where,
+      order,
+    );
+  }
+
   private ensureAccessOrThrow(
     conversation: Conversation,
     requesterEmail: string,
@@ -151,10 +194,12 @@ export class ChatService {
     if (!conversation) {
       throw new BadRequestException('Conversation not found');
     }
-    if (
-      conversation.userEmail !== requesterEmail &&
-      conversation.adminEmail !== adminEmail
-    ) {
+
+    const hasAccess =
+      conversation.userEmail === requesterEmail ||
+      (conversation.adminEmail === adminEmail && requesterEmail === adminEmail);
+
+    if (!hasAccess) {
       throw new ForbiddenException('Access denied to this conversation');
     }
   }

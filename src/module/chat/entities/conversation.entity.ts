@@ -5,9 +5,11 @@ import {
   UpdateDateColumn,
   Index,
   Entity,
+  Unique,
 } from 'typeorm';
 
 @Entity()
+@Unique(['userEmail', 'adminEmail'])
 export class Conversation {
   @PrimaryGeneratedColumn('uuid')
   id: string;

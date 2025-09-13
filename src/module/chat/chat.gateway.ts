@@ -61,9 +61,12 @@ export class ChatGateway
     if (role === UserRole.Staff) {
       this.logger.log(`Admin connected: ${email}`);
       client.join(`admin:${email}`);
+      this;
     } else {
       this.logger.log(`User connected: ${email}`);
-      client.join(`user:${email}`);
+      const conv = await this.chatService.getOrCreateConversation(email);
+      this.logger.log(`User ${email} joined conversation: ${conv.id}`);
+      this.joinConversation(client, conv.id.toString(), role);
     }
   }
 
@@ -74,6 +77,7 @@ export class ChatGateway
       this.logger.log(`User ${user.email} disconnected`);
     }
   }
+
   @SubscribeMessage('send')
   async handleSendMessage(
     @MessageBody()
@@ -81,34 +85,120 @@ export class ChatGateway
     @ConnectedSocket() client: Socket,
   ) {
     const { email, role } = (client as any).user;
-    this.logger.debug(`Raw message from ${email}: ${bodyText}`);
 
-    const body = JSON.parse(bodyText as string);
-    this.logger.log(`Received message from ${email}: ${body.text}`);
+    try {
+      const body = JSON.parse(bodyText as string);
+      this.logger.log(`Received message from ${email}: ${body.text}`);
 
-    const isAdminSender = role === UserRole.Staff; // hoặc UserRole.Staff nếu bạn dùng enum
+      const isAdminSender = role === UserRole.Staff;
 
-    // Gọi service để lưu message
-    const newMessage = await this.chatService.sendMessage({
-      senderEmail: email,
-      text: body.text,
-      isAdminSender,
-      toUserEmail: body.toUserEmail,
-      conversationId: body.conversationId,
-    });
+      const conversationId = await this.chatService.resolveConversationId({
+        requesterEmail: email,
+        isAdmin: isAdminSender,
+        toUserEmail: body.toUserEmail,
+        conversationId: body.conversationId,
+      });
 
-    // Emit lại cho người gửi
-    client.emit('message', newMessage);
+      this.logger.log(`Resolved conversationId: ${conversationId}`);
 
-    // Emit cho người nhận
-    const room = isAdminSender
-      ? `user:${newMessage.toEmail}`
-      : `admin:${await this.chatService.getAdminEmail()}`;
+      const newMessage = await this.chatService.sendMessage({
+        senderEmail: email,
+        text: body.text,
+        isAdminSender,
+        toUserEmail: body.toUserEmail,
+        conversationId: conversationId,
+      });
 
-    this.logger.debug(
-      `Emit to room: ${room}, message: ${JSON.stringify(newMessage)}`,
+      this.logger.log(
+        `Message sent by ${email}: ${newMessage.text} to conversation ${newMessage.conversationId}`,
+      );
+
+      this.server
+        .to(`conversation:${newMessage.conversationId}`)
+        .emit('message', newMessage);
+
+      this.server
+        .to(`admin:${await this.chatService.getAdminEmail()}`)
+        .emit('inboxUpdated', newMessage);
+
+      return { status: 'success', messageId: newMessage.id };
+    } catch (error) {
+      this.logger.error(`Error sending message from ${email}:`, error.message);
+      return { status: 'error', message: error.message };
+    }
+  }
+
+  @SubscribeMessage('joinRoom')
+  async onJoinRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() bodyText: { conversationId?: string; toUserEmail?: string },
+  ) {
+    this.logger.log(
+      `Client ${client.id} joining room with body: ${JSON.stringify(bodyText)}`,
     );
+    const { role } = (client as any).user;
+    const body = JSON.parse(bodyText as string);
+    this.joinConversation(client, body.conversationId!, role);
+    return { status: 'success', conversationId: body.conversationId };
+  }
 
-    this.server.to(room).emit('message', newMessage);
+  @SubscribeMessage('leaveRoom')
+  async onLeaveRoom(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() bodyText: { conversationId?: string; toUserEmail?: string },
+  ) {
+    this.logger.log(
+      `Client ${client.id} Leaving room with body: ${JSON.stringify(bodyText)}`,
+    );
+    const body = JSON.parse(bodyText as string);
+    client.leave(`conversation:${body.conversationId}`);
+    return { status: 'success', conversationId: body.conversationId };
+  }
+
+  @SubscribeMessage('typing')
+  async onTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    body: { conversationId?: string; toUserEmail?: string; isTyping: boolean },
+  ) {
+    const { email, role } = (client as any).user;
+
+    try {
+      const conversationId = await this.chatService.resolveConversationId({
+        requesterEmail: email,
+        isAdmin: role === UserRole.Staff,
+        toUserEmail: body.toUserEmail,
+        conversationId: body.conversationId,
+      });
+
+      this.logger.debug(
+        `${email} typing in conversation ${conversationId}: ${body.isTyping}`,
+      );
+
+      this.server.to(`conversation:${conversationId}`).emit('typing', {
+        fromEmail: email,
+        isTyping: body.isTyping,
+        conversationId: conversationId,
+      });
+
+      return { status: 'success', conversationId };
+    } catch (error) {
+      this.logger.error(
+        `Error handling typing event from ${email}:`,
+        error.message,
+      );
+      return { status: 'error', message: error.message };
+    }
+  }
+
+  private async joinConversation(
+    client: Socket,
+    conversationId: string,
+    role: UserRole,
+  ) {
+    this.logger.debug(
+      `Client ${client.id} joining conversation ${conversationId} with role ${role}`,
+    );
+    client.join(`conversation:${conversationId}`);
   }
 }

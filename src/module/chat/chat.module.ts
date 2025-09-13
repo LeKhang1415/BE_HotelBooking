@@ -9,12 +9,14 @@ import { ConfigModule } from '@nestjs/config';
 import jwtConfig from 'src/config/jwt.config';
 import { JwtModule } from '@nestjs/jwt';
 import { User } from '../users/entities/user.entity';
+import { PaginationModule } from 'src/common/pagination/pagination.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Conversation, Message]),
     ConfigModule.forFeature(jwtConfig),
     JwtModule.registerAsync(jwtConfig.asProvider()),
+    PaginationModule,
   ],
   providers: [ChatService, ChatGateway],
   controllers: [ChatController],

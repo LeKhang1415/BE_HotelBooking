@@ -567,7 +567,7 @@ export class BookingService {
     return room;
   }
 
-  public async getAllBooking(
+  async getAllBooking(
     getAllBookingDto: GetAllBookingDto,
   ): Promise<Paginated<Booking>> {
     const {

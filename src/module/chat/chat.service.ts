@@ -7,12 +7,19 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Conversation } from './entities/conversation.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsOrder, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import {
+  FindOptionsOrder,
+  FindOptionsWhere,
+  ILike,
+  LessThan,
+  Repository,
+} from 'typeorm';
 import { Message } from './entities/message.entity';
 import { MessageStatus } from './enums/message-status.enum';
 import { ListConversationsDto } from './dtos/list-conversation.dto';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
+import { GetMessagesDto } from './dtos/get-messages.dto';
 
 @Injectable()
 export class ChatService {
@@ -184,6 +191,24 @@ export class ChatService {
       where,
       order,
     );
+  }
+
+  async getMessages(conversationId: string, getMessagesDto: GetMessagesDto) {
+    const { limit } = getMessagesDto;
+
+    const where: FindOptionsWhere<Message> = {
+      conversation: { id: conversationId },
+    };
+
+    const items = await this.messageRepository.find({
+      where,
+      order: { id: 'DESC' },
+      take: limit,
+    });
+
+    return {
+      items: items.reverse(),
+    };
   }
 
   private ensureAccessOrThrow(

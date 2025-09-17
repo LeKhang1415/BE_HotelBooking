@@ -32,9 +32,6 @@ export class Message {
   @Column({ type: 'text', nullable: true })
   text?: string;
 
-  @Column({ type: 'jsonb', nullable: true, default: () => "'[]'" })
-  attachments?: Array<{ url: string; type?: string; size?: number }>;
-
   @Column({
     type: 'enum',
     enum: MessageStatus,

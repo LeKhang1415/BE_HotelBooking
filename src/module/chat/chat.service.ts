@@ -175,7 +175,7 @@ export class ChatService {
     };
 
     if (search) {
-      where.userEmail = ILike(`%${search}%`); // Tìm kiếm email user theo từ khóa
+      where.userEmail = ILike(`%${search}%`);
     }
 
     //ưu tiên lastMessageAt, sau đó updatedAt

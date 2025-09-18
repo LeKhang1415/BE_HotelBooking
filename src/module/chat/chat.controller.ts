@@ -12,9 +12,9 @@ export class ChatController {
   @Get(':conversationId/messages')
   async getMessages(
     @Param('conversationId') conversationId: string,
-    @Query() query: GetMessagesDto,
+    @Query() getMessagesDto: GetMessagesDto,
   ) {
-    return this.chatService.getMessages(conversationId, query);
+    return this.chatService.getMessages(conversationId, getMessagesDto);
   }
 
   @Get()

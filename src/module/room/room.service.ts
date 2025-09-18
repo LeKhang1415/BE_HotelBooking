@@ -171,6 +171,7 @@ export class RoomService {
       maxPrice,
       priceType,
       numberOfPeople,
+      search,
       ...pagination
     } = getRoomDto;
 
@@ -200,6 +201,12 @@ export class RoomService {
     if (numberOfPeople != null) {
       queryBuilder.andWhere('typeRoom.maxPeople >= :numberOfPeople', {
         numberOfPeople,
+      });
+    }
+
+    if (search) {
+      queryBuilder.andWhere('(room.name LIKE :search )', {
+        search: `%${getRoomDto.search}%`,
       });
     }
 

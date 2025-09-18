@@ -41,6 +41,7 @@ import {
   UpdateMyBookingDto,
 } from './dtos/update-booking.dto';
 import { PaymentStatus } from '../payment/enums/payment-status.enum';
+import { FindCheckinCheckoutTodayDto } from './dtos/find-checkin-checkout-today.dto';
 
 @Injectable()
 export class BookingService {
@@ -579,57 +580,80 @@ export class BookingService {
       endDate,
       bookingDateFrom,
       bookingDateTo,
+      search,
       ...pagination
     } = getAllBookingDto;
 
-    const where: FindOptionsWhere<Booking> = {};
+    const query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.user', 'user')
+      .leftJoinAndSelect('booking.room', 'room')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
+      .leftJoinAndSelect('booking.payments', 'payments')
+      .leftJoinAndSelect('booking.customer', 'customer');
 
     // Filter by status
     if (status) {
-      where.bookingStatus = status;
+      query.andWhere('booking.bookingStatus = :status', { status });
     }
 
     // Filter by booking type
     if (bookingType) {
-      where.bookingType = bookingType;
+      query.andWhere('booking.bookingType = :bookingType', { bookingType });
     }
 
     // Filter by stay type
     if (stayType) {
-      where.stayType = stayType;
+      query.andWhere('booking.stayType = :stayType', { stayType });
     }
 
     // Filter by room
     if (roomId) {
-      where.room = { id: roomId };
+      query.andWhere('room.id = :roomId', { roomId });
     }
 
     // Filter by booking period (startTime - endTime)
     if (startDate && endDate) {
-      where.startTime = Between(new Date(startDate), new Date(endDate));
+      query.andWhere('booking.startTime BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+      });
     } else if (startDate) {
-      where.startTime = Between(new Date(startDate), new Date());
+      query.andWhere('booking.startTime >= :startDate', {
+        startDate: new Date(startDate),
+      });
     }
 
     // Filter by booking creation date
     if (bookingDateFrom && bookingDateTo) {
-      where.bookingDate = Between(bookingDateFrom, bookingDateTo);
+      query.andWhere(
+        'booking.bookingDate BETWEEN :bookingDateFrom AND :bookingDateTo',
+        {
+          bookingDateFrom,
+          bookingDateTo,
+        },
+      );
     } else if (bookingDateFrom) {
-      where.bookingDate = Between(bookingDateFrom, new Date());
+      query.andWhere('booking.bookingDate >= :bookingDateFrom', {
+        bookingDateFrom,
+      });
     }
 
-    const relations = ['user', 'room', 'room.typeRoom', 'payments', 'customer'];
-    const order: FindOptionsOrder<Booking> = {
-      createdDate: 'DESC',
-      bookingDate: 'DESC',
-    };
+    // Search theo room.name, customer.fullName, customer.phone
+    if (search) {
+      query.andWhere(
+        '(room.name ILIKE :search OR customer.fullName ILIKE :search OR customer.phone ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
 
-    return await this.paginationProvider.paginateQuery(
+    query
+      .orderBy('booking.createdDate', 'DESC')
+      .addOrderBy('booking.bookingDate', 'DESC');
+
+    return await this.paginationProvider.paginateQueryBuilder(
       pagination,
-      this.bookingRepository,
-      where,
-      order,
-      relations,
+      query,
     );
   }
 
@@ -683,8 +707,10 @@ export class BookingService {
   }
 
   async findCheckinCheckoutToday(
-    paginationQueryDto: PaginationQueryDto,
+    findCheckinCheckoutTodayDto: FindCheckinCheckoutTodayDto,
   ): Promise<Paginated<Booking>> {
+    const { search, status, ...pagination } = findCheckinCheckoutTodayDto;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -693,23 +719,37 @@ export class BookingService {
 
     const excludeStatus = [BookingStatus.Cancelled, BookingStatus.Rejected];
 
-    const where = [
-      {
-        startTime: LessThanOrEqual(tomorrow),
-        endTime: MoreThanOrEqual(today),
-        bookingStatus: Not(In(excludeStatus)),
-      },
-    ];
+    const query = this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoinAndSelect('booking.room', 'room')
+      .leftJoinAndSelect('booking.typeRoom', 'typeRoom')
+      .leftJoinAndSelect('booking.user', 'user')
+      .leftJoinAndSelect('booking.customer', 'customer')
+      .where('booking.startTime <= :tomorrow', { tomorrow })
+      .andWhere('booking.endTime >= :today', { today });
 
-    const relations = ['room', 'user', 'room.typeRoom', 'customer'];
+    query.andWhere('booking.bookingStatus NOT IN (:...excludeStatus)', {
+      excludeStatus,
+    });
 
-    return await this.paginationProvider.paginateQuery(
-      paginationQueryDto,
-      this.bookingRepository,
-      where,
-      {},
-      relations,
-    );
+    // Nếu có status cụ thể
+    if (status) {
+      query.andWhere('booking.bookingStatus = :status', { status });
+    }
+
+    // Search theo room.name, user.fullName, customer.fullName
+    if (search) {
+      query.andWhere(
+        `(LOWER(room.name) LIKE LOWER(:search) 
+        OR LOWER(user.fullName) LIKE LOWER(:search)
+        OR LOWER(customer.fullName) LIKE LOWER(:search))`,
+        { search: `%${search}%` },
+      );
+    }
+
+    query.orderBy('booking.startTime', 'ASC');
+
+    return this.paginationProvider.paginateQueryBuilder(pagination, query);
   }
 
   async getTodayOccupancySummary() {

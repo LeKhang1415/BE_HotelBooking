@@ -82,10 +82,10 @@ export class UsersService {
   }
 
   async getAllUser(getUserDto: GetUserDto): Promise<Paginated<User>> {
-    const { keyword, ...pagination } = getUserDto;
+    const { search, ...pagination } = getUserDto;
 
     const where: FindOptionsWhere<User> = {
-      name: Like(`%${keyword}%`),
+      name: Like(`%${search}%`),
       deletedAt: IsNull(),
     };
 

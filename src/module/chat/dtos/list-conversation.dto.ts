@@ -5,7 +5,6 @@ import { PaginationQueryDto } from 'src/common/pagination/dtos/pagination-query.
 class ListConversationsBaseDto {
   @IsOptional()
   @IsString()
-  @MaxLength(200)
   search?: string;
 }
 

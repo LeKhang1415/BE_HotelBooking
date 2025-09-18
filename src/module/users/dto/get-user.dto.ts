@@ -5,7 +5,7 @@ import { IntersectionType } from '@nestjs/mapped-types';
 class GetUserBaseDto {
   @IsOptional()
   @IsString()
-  keyword?: string = '';
+  search?: string;
 }
 
 export class GetUserDto extends IntersectionType(

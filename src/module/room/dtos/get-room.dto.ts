@@ -3,6 +3,7 @@ import {
   IsIn,
   IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
   Min,
 } from 'class-validator';
@@ -37,6 +38,10 @@ class RoomBaseDto {
   @IsOptional()
   @IsIn(['hour', 'day'])
   priceType?: 'hour' | 'day';
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 
 export class GetRoomDto extends IntersectionType(

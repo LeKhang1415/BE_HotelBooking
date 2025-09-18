@@ -1,4 +1,10 @@
-import { IsOptional, IsEnum, IsDateString, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  IsUUID,
+  IsString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { BookingStatus } from '../enums/booking-status';
 import { BookingType } from '../enums/booking-type';
@@ -38,6 +44,10 @@ export class GetAllBookingBaseDto {
   @IsOptional()
   @Type(() => Date)
   bookingDateTo?: Date;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
 
 export class GetAllBookingDto extends IntersectionType(

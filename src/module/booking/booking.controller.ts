@@ -25,6 +25,7 @@ import {
   UpdateBookingDto,
   UpdateMyBookingDto,
 } from './dtos/update-booking.dto';
+import { FindCheckinCheckoutTodayDto } from './dtos/find-checkin-checkout-today.dto';
 
 @Controller('booking')
 export class BookingController {
@@ -104,8 +105,12 @@ export class BookingController {
 
   @Roles(UserRole.Staff)
   @Get('today/booking')
-  async findBookingToday(@Query() paginationQueryDto: PaginationQueryDto) {
-    return this.bookingService.findCheckinCheckoutToday(paginationQueryDto);
+  async findCheckinCheckoutToday(
+    @Query() findCheckinCheckoutTodayDto: FindCheckinCheckoutTodayDto,
+  ) {
+    return this.bookingService.findCheckinCheckoutToday(
+      findCheckinCheckoutTodayDto,
+    );
   }
 
   @Get('today/summary')

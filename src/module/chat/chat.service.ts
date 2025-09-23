@@ -20,6 +20,7 @@ import { ListConversationsDto } from './dtos/list-conversation.dto';
 import { Paginated } from 'src/common/pagination/interfaces/paginated.interface';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
 import { GetMessagesDto } from './dtos/get-messages.dto';
+import { User } from 'src/module/users/entities/user.entity';
 
 @Injectable()
 export class ChatService {
@@ -33,19 +34,32 @@ export class ChatService {
 
     @InjectRepository(Message)
     private readonly messageRepository: Repository<Message>,
+
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
-  async getAdminEmail(): Promise<string> {
+  async getAdminUser(): Promise<User> {
     const envEmail = this.config.get<string>('ADMIN_EMAIL');
-    if (envEmail) return envEmail;
+    const adminEmail = envEmail || 'test@gmail.com';
 
-    return 'test@gmail.com';
+    const adminUser = await this.userRepository.findOne({
+      where: { email: adminEmail },
+    });
+
+    if (!adminUser) {
+      throw new NotFoundException(
+        `Admin user with email ${adminEmail} not found`,
+      );
+    }
+
+    return adminUser;
   }
 
-  async getOrCreateConversation(userEmail: string) {
-    const adminEmail = await this.getAdminEmail();
+  async getOrCreateConversation(user: User) {
+    const adminUser = await this.getAdminUser();
 
-    if (userEmail === adminEmail) {
+    if (user.id === adminUser.id) {
       throw new BadRequestException(
         'Admin cannot create conversation with themselves',
       );
@@ -54,20 +68,20 @@ export class ChatService {
     const now = new Date();
     const conversation = await this.conversationRepository.findOne({
       where: {
-        userEmail: userEmail,
-        adminEmail: adminEmail,
+        user: { id: user.id },
+        admin: { id: adminUser.id },
       },
     });
 
     if (conversation) return conversation;
 
     const newConversation = this.conversationRepository.create({
-      userEmail: userEmail,
-      adminEmail: adminEmail,
+      user: user,
+      admin: adminUser,
       unreadForAdmin: 0,
       unreadForUser: 0,
       lastMessageText: '',
-      lastMessageFromEmail: '',
+      lastMessageFromEmail: user.email,
       lastMessageAt: now,
     });
 
@@ -75,16 +89,17 @@ export class ChatService {
   }
 
   async resolveConversationId(params: {
-    requesterEmail: string;
+    requester: User;
     isAdmin: boolean;
-    toUserEmail?: string;
+    toUser?: User;
     conversationId?: string;
   }): Promise<string> {
-    const adminEmail = await this.getAdminEmail();
+    const adminUser = await this.getAdminUser();
 
     if (params.conversationId) {
       const conv = await this.conversationRepository.findOne({
         where: { id: params.conversationId },
+        relations: ['user', 'admin'],
       });
 
       if (!conv) {
@@ -93,62 +108,65 @@ export class ChatService {
         );
       }
 
-      this.ensureAccessOrThrow(conv, params.requesterEmail, adminEmail);
+      this.ensureAccessOrThrow(conv, params.requester, adminUser);
       return conv.id.toString();
     }
 
     if (!params.isAdmin) {
-      const conv = await this.getOrCreateConversation(params.requesterEmail);
+      const conv = await this.getOrCreateConversation(params.requester);
       return conv.id.toString();
     }
 
-    if (!params.toUserEmail) {
+    if (!params.toUser) {
       throw new BadRequestException(
-        'toUserEmail is required when requester is admin',
+        'toUser is required when requester is admin',
       );
     }
 
-    const conv = await this.getOrCreateConversation(params.toUserEmail);
-    this.ensureAccessOrThrow(conv, params.requesterEmail, adminEmail);
+    const conv = await this.getOrCreateConversation(params.toUser);
+    this.ensureAccessOrThrow(conv, params.requester, adminUser);
     return conv.id.toString();
   }
+
   async sendMessage(args: {
-    senderEmail: string;
+    sender: User;
     text: string;
     isAdminSender: boolean;
-    toUserEmail?: string;
+    toUser?: User;
     conversationId?: string;
   }) {
-    const adminEmail = await this.getAdminEmail();
+    const adminUser = await this.getAdminUser();
     const convId = await this.resolveConversationId({
-      requesterEmail: args.senderEmail,
+      requester: args.sender,
       isAdmin: args.isAdminSender,
-      toUserEmail: args.toUserEmail,
+      toUser: args.toUser,
       conversationId: args.conversationId,
     });
 
     const conv = await this.conversationRepository.findOne({
       where: { id: convId },
+      relations: ['user', 'admin'],
     });
 
     if (!conv) {
       throw new BadRequestException('Conversation not found');
     }
 
-    const toEmail = args.isAdminSender ? conv.userEmail : adminEmail;
+    const toUser = args.isAdminSender ? conv.user : adminUser;
 
     const newMessage = this.messageRepository.create({
       conversationId: convId,
-      fromEmail: args.senderEmail,
-      toEmail,
+      fromEmail: args.sender.email,
+      toEmail: toUser.email,
       text: args.text,
       status: MessageStatus.SENT,
     });
+
     await Promise.all([
       this.messageRepository.save(newMessage),
       this.conversationRepository.update(convId, {
         lastMessageText: args.text,
-        lastMessageFromEmail: args.senderEmail,
+        lastMessageFromEmail: args.sender.email,
         lastMessageAt: new Date(),
       }),
       // Tăng unread cho bên nhận
@@ -167,18 +185,20 @@ export class ChatService {
   ): Promise<Paginated<Conversation>> {
     const { search, ...pagination } = listConversationsDto;
 
-    const adminEmail = await this.getAdminEmail();
+    const adminUser = await this.getAdminUser();
 
     // Build where condition
     const where: FindOptionsWhere<Conversation> = {
-      adminEmail,
+      admin: { id: adminUser.id },
     };
 
     if (search) {
-      where.userEmail = ILike(`%${search}%`);
+      where.user = {
+        email: ILike(`%${search}%`),
+      };
     }
 
-    //ưu tiên lastMessageAt, sau đó updatedAt
+    // Ưu tiên lastMessageAt, sau đó updatedAt
     const order: FindOptionsOrder<Conversation> = {
       lastMessageAt: 'DESC',
       updatedAt: 'DESC',
@@ -190,6 +210,7 @@ export class ChatService {
       this.conversationRepository,
       where,
       order,
+      ['user', 'admin'], // Include relations
     );
   }
 
@@ -202,27 +223,46 @@ export class ChatService {
 
     const items = await this.messageRepository.find({
       where,
-      order: { id: 'DESC' },
+      order: { createdAt: 'ASC' },
       take: limit,
     });
 
-    return {
-      items: items.reverse(),
-    };
+    return { items };
+  }
+
+  async markAsRead(conversationId: string, requester: User) {
+    const adminUser = await this.getAdminUser();
+    const conversation = await this.conversationRepository.findOne({
+      where: { id: conversationId },
+      relations: ['user', 'admin'],
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    this.ensureAccessOrThrow(conversation, requester, adminUser);
+
+    const isAdmin = requester.id === adminUser.id;
+    const updateField = isAdmin ? 'unreadForAdmin' : 'unreadForUser';
+
+    await this.conversationRepository.update(conversationId, {
+      [updateField]: 0,
+    });
   }
 
   private ensureAccessOrThrow(
     conversation: Conversation,
-    requesterEmail: string,
-    adminEmail: string,
+    requester: User,
+    adminUser: User,
   ) {
     if (!conversation) {
       throw new BadRequestException('Conversation not found');
     }
 
     const hasAccess =
-      conversation.userEmail === requesterEmail ||
-      (conversation.adminEmail === adminEmail && requesterEmail === adminEmail);
+      conversation.user.id === requester.id ||
+      (conversation.admin.id === adminUser.id && requester.id === adminUser.id);
 
     if (!hasAccess) {
       throw new ForbiddenException('Access denied to this conversation');

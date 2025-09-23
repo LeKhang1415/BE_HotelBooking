@@ -13,6 +13,9 @@ import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '../users/enum/user-role.enum';
+import { InjectRepository } from '@nestjs/typeorm';
+import { User } from '../users/entities/user.entity';
+import { Repository } from 'typeorm';
 
 @WebSocketGateway({
   namespace: '/chat',
@@ -24,13 +27,16 @@ export class ChatGateway
 {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(ChatGateway.name);
+
   constructor(
     private readonly chatService: ChatService,
     private readonly jwt: JwtService,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   afterInit(server: Server) {
-    server.use((socket: Socket, next) => {
+    server.use(async (socket: Socket, next) => {
       try {
         const raw =
           socket.handshake.auth?.token ||
@@ -42,7 +48,15 @@ export class ChatGateway
         const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
 
         const payload = this.jwt.verify(token);
-        (socket as any).user = payload;
+
+        // Lấy full user từ database thay vì chỉ dùng payload
+        const user = await this.userRepository.findOne({
+          where: { email: payload.email },
+        });
+
+        if (!user) return next(new Error('User not found'));
+
+        (socket as any).user = user;
         next();
       } catch (err) {
         return next(new Error('Unauthorized'));
@@ -52,19 +66,21 @@ export class ChatGateway
 
   async handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
-    const user = (client as any).user;
+    const user = (client as any).user as User;
+
     if (!user) {
       client.disconnect(true);
       return;
     }
+
     const { email, role } = user;
+
     if (role === UserRole.Staff) {
       this.logger.log(`Admin connected: ${email}`);
       client.join(`admin:${email}`);
-      this;
     } else {
       this.logger.log(`User connected: ${email}`);
-      const conv = await this.chatService.getOrCreateConversation(email);
+      const conv = await this.chatService.getOrCreateConversation(user);
       this.logger.log(`User ${email} joined conversation: ${conv.id}`);
       this.joinConversation(client, conv.id.toString(), role);
     }
@@ -72,7 +88,7 @@ export class ChatGateway
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-    const user = (client as any).user;
+    const user = (client as any).user as User;
     if (user) {
       this.logger.log(`User ${user.email} disconnected`);
     }
@@ -84,46 +100,65 @@ export class ChatGateway
     bodyText: string,
     @ConnectedSocket() client: Socket,
   ) {
-    const { email, role } = (client as any).user;
+    const user = (client as any).user as User;
 
     try {
       const body = JSON.parse(bodyText as string);
-      this.logger.log(`Received message from ${email}: ${body.text}`);
+      this.logger.log(`Received message from ${user.email}: ${body.text}`);
 
-      const isAdminSender = role === UserRole.Staff;
+      const isAdminSender = user.role === UserRole.Staff;
+
+      // Tìm toUser nếu có toUserEmail
+      let toUser: User | undefined;
+      if (body.toUserEmail) {
+        const foundUser = await this.userRepository.findOne({
+          where: { email: body.toUserEmail },
+        });
+        toUser = foundUser === null ? undefined : foundUser;
+
+        if (!toUser) {
+          return { status: 'error', message: 'Target user not found' };
+        }
+      }
 
       const conversationId = await this.chatService.resolveConversationId({
-        requesterEmail: email,
+        requester: user,
         isAdmin: isAdminSender,
-        toUserEmail: body.toUserEmail,
+        toUser: toUser,
         conversationId: body.conversationId,
       });
 
       this.logger.log(`Resolved conversationId: ${conversationId}`);
 
       const newMessage = await this.chatService.sendMessage({
-        senderEmail: email,
+        sender: user,
         text: body.text,
         isAdminSender,
-        toUserEmail: body.toUserEmail,
+        toUser: toUser,
         conversationId: conversationId,
       });
 
       this.logger.log(
-        `Message sent by ${email}: ${newMessage.text} to conversation ${newMessage.conversationId}`,
+        `Message sent by ${user.email}: ${newMessage.text} to conversation ${newMessage.conversationId}`,
       );
 
+      // Emit message to conversation room
       this.server
         .to(`conversation:${newMessage.conversationId}`)
         .emit('message', newMessage);
 
+      // Emit inbox update to admin
+      const adminUser = await this.chatService.getAdminUser();
       this.server
-        .to(`admin:${await this.chatService.getAdminEmail()}`)
+        .to(`admin:${adminUser.email}`)
         .emit('inboxUpdated', newMessage);
 
       return { status: 'success', messageId: newMessage.id };
     } catch (error) {
-      this.logger.error(`Error sending message from ${email}:`, error.message);
+      this.logger.error(
+        `Error sending message from ${user.email}:`,
+        error.message,
+      );
       return { status: 'error', message: error.message };
     }
   }
@@ -131,26 +166,47 @@ export class ChatGateway
   @SubscribeMessage('joinRoom')
   async onJoinRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() bodyText: { conversationId?: string; toUserEmail?: string },
+    @MessageBody() bodyText: string,
   ) {
-    this.logger.log(
-      `Client ${client.id} joining room with body: ${JSON.stringify(bodyText)}`,
-    );
-    const { role } = (client as any).user;
-    const body = JSON.parse(bodyText as string);
-    this.joinConversation(client, body.conversationId!, role);
-    return { status: 'success', conversationId: body.conversationId };
+    this.logger.log(`Client ${client.id} joining room with body: ${bodyText}`);
+
+    const user = (client as any).user as User;
+    const body = JSON.parse(bodyText);
+
+    try {
+      // Tìm toUser nếu có toUserEmail
+      let toUser: User | undefined;
+      if (body.toUserEmail) {
+        const foundUser = await this.userRepository.findOne({
+          where: { email: body.toUserEmail },
+        });
+        toUser = foundUser === null ? undefined : foundUser;
+      }
+
+      const conversationId = await this.chatService.resolveConversationId({
+        requester: user,
+        isAdmin: user.role === UserRole.Staff,
+        toUser: toUser,
+        conversationId: body.conversationId,
+      });
+
+      this.joinConversation(client, conversationId, user.role);
+
+      return { status: 'success', conversationId };
+    } catch (error) {
+      this.logger.error(`Error joining room for ${user.email}:`, error.message);
+      return { status: 'error', message: error.message };
+    }
   }
 
   @SubscribeMessage('leaveRoom')
   async onLeaveRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() bodyText: { conversationId?: string; toUserEmail?: string },
+    @MessageBody() bodyText: string,
   ) {
-    this.logger.log(
-      `Client ${client.id} Leaving room with body: ${JSON.stringify(bodyText)}`,
-    );
-    const body = JSON.parse(bodyText as string);
+    this.logger.log(`Client ${client.id} leaving room with body: ${bodyText}`);
+
+    const body = JSON.parse(bodyText);
     client.leave(`conversation:${body.conversationId}`);
     return { status: 'success', conversationId: body.conversationId };
   }
@@ -159,24 +215,35 @@ export class ChatGateway
   async onTyping(
     @ConnectedSocket() client: Socket,
     @MessageBody()
-    body: { conversationId?: string; toUserEmail?: string; isTyping: boolean },
+    bodyText: string,
   ) {
-    const { email, role } = (client as any).user;
+    const user = (client as any).user as User;
 
     try {
+      const body = JSON.parse(bodyText);
+
+      // Tìm toUser nếu có toUserEmail
+      let toUser: User | undefined;
+      if (body.toUserEmail) {
+        const foundUser = await this.userRepository.findOne({
+          where: { email: body.toUserEmail },
+        });
+        toUser = foundUser === null ? undefined : foundUser;
+      }
+
       const conversationId = await this.chatService.resolveConversationId({
-        requesterEmail: email,
-        isAdmin: role === UserRole.Staff,
-        toUserEmail: body.toUserEmail,
+        requester: user,
+        isAdmin: user.role === UserRole.Staff,
+        toUser: toUser,
         conversationId: body.conversationId,
       });
 
       this.logger.debug(
-        `${email} typing in conversation ${conversationId}: ${body.isTyping}`,
+        `${user.email} typing in conversation ${conversationId}: ${body.isTyping}`,
       );
 
       this.server.to(`conversation:${conversationId}`).emit('typing', {
-        fromEmail: email,
+        fromEmail: user.email,
         isTyping: body.isTyping,
         conversationId: conversationId,
       });
@@ -184,7 +251,57 @@ export class ChatGateway
       return { status: 'success', conversationId };
     } catch (error) {
       this.logger.error(
-        `Error handling typing event from ${email}:`,
+        `Error handling typing event from ${user.email}:`,
+        error.message,
+      );
+      return { status: 'error', message: error.message };
+    }
+  }
+
+  @SubscribeMessage('markAsRead')
+  async onMarkAsRead(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() bodyText: string,
+  ) {
+    const user = (client as any).user as User;
+
+    try {
+      const body = JSON.parse(bodyText);
+
+      // Tìm toUser nếu có toUserEmail
+      let toUser: User | undefined;
+      if (body.toUserEmail) {
+        const foundUser = await this.userRepository.findOne({
+          where: { email: body.toUserEmail },
+        });
+        toUser = foundUser === null ? undefined : foundUser;
+      }
+
+      const conversationId = await this.chatService.resolveConversationId({
+        requester: user,
+        isAdmin: user.role === UserRole.Staff,
+        toUser: toUser,
+        conversationId: body.conversationId,
+      });
+
+      await this.chatService.markAsRead(conversationId, user);
+
+      this.logger.log(
+        `${user.email} marked conversation ${conversationId} as read`,
+      );
+
+      // Emit update to admin if user marked as read
+      if (user.role !== UserRole.Staff) {
+        const adminUser = await this.chatService.getAdminUser();
+        this.server
+          .to(`admin:${adminUser.email}`)
+          .emit('conversationRead', { conversationId, userEmail: user.email });
+      }
+
+      return { status: 'success', conversationId };
+    } catch (error) {
+      this.logger.error(
+        `Error marking conversation as read for ${user.email}:`,
         error.message,
       );
       return { status: 'error', message: error.message };

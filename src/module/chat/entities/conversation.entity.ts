@@ -1,26 +1,25 @@
+import { User } from 'src/module/users/entities/user.entity';
 import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
-  Index,
   Entity,
   Unique,
+  ManyToOne,
 } from 'typeorm';
 
 @Entity()
-@Unique(['userEmail', 'adminEmail'])
+@Unique(['user', 'admin'])
 export class Conversation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', nullable: false })
-  @Index()
-  userEmail: string;
+  @ManyToOne(() => User, { eager: true })
+  user: User;
 
-  @Column({ type: 'varchar', nullable: false })
-  @Index()
-  adminEmail: string;
+  @ManyToOne(() => User, { eager: true })
+  admin: User;
 
   @Column({ type: 'text', nullable: true })
   lastMessageText?: string;

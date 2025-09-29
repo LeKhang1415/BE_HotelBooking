@@ -290,13 +290,10 @@ export class ChatGateway
         `${user.email} marked conversation ${conversationId} as read`,
       );
 
-      // Emit update to admin if user marked as read
-      if (user.role !== UserRole.Staff) {
-        const adminUser = await this.chatService.getAdminUser();
-        this.server
-          .to(`admin:${adminUser.email}`)
-          .emit('conversationRead', { conversationId, userEmail: user.email });
-      }
+      this.server.emit('conversationRead', {
+        conversationId,
+        userEmail: user.email,
+      });
 
       return { status: 'success', conversationId };
     } catch (error) {

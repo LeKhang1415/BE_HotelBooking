@@ -99,10 +99,8 @@ export class Booking {
   extraCharges: number;
 
   @CreateDateColumn()
-  @Exclude()
   createdDate: Date;
 
   @UpdateDateColumn()
-  @Exclude()
   updateDate: Date;
 }

@@ -141,6 +141,44 @@ export class ReviewService {
     await this.reviewRepository.save(review);
   }
 
+  async findAll(getReviewDto: GetReviewDto) {
+    const {
+      roomId,
+      userId,
+      rating,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+      ...pagination
+    } = getReviewDto;
+
+    let queryBuilder = this.reviewRepository
+      .createQueryBuilder('review')
+      .leftJoinAndSelect('review.user', 'user')
+      .leftJoinAndSelect('review.room', 'room')
+      .leftJoinAndSelect('review.booking', 'booking')
+      .where('review.isActive = :isActive', { isActive: true });
+
+    if (roomId) {
+      queryBuilder.andWhere('room.id = :roomId', { roomId });
+    }
+
+    if (userId) {
+      queryBuilder.andWhere('user.id = :userId', { userId });
+    }
+
+    if (rating) {
+      queryBuilder.andWhere('review.rating = :rating', { rating });
+    }
+
+    // Sorting
+    queryBuilder.orderBy(`review.${sortBy}`, sortOrder);
+
+    return await this.paginationProvider.paginateQueryBuilder(
+      pagination,
+      queryBuilder,
+    );
+  }
+
   async findOne(id: string): Promise<Review> {
     const review = await this.reviewRepository.findOne({
       where: { id, isActive: true },

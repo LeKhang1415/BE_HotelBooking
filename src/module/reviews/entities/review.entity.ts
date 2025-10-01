@@ -32,11 +32,11 @@ export class Review {
   room: Room;
 
   @Column({ type: 'boolean', default: true })
-  isActive: boolean; // Để ẩn/hiện review
+  isActive: boolean;
 
   @ManyToOne(() => Booking, (booking) => booking.review, { eager: true })
   @JoinColumn({ name: 'booking_id' })
-  booking: Booking; // Liên kết với booking để verify
+  booking: Booking;
 
   @CreateDateColumn()
   createdAt: Date;

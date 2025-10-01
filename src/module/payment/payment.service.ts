@@ -153,7 +153,7 @@ export class PaymentService {
 
     const isValid = this.vnpayProvider.verifyCallback(query);
     if (!isValid) {
-      return `${this.vnpayConfiguration.frontendUrl}/payment-fail?orderId=${query.vnp_TxnRef}`;
+      return `${this.vnpayConfiguration.frontendUrl}/payment-fail`;
     }
 
     const payment = await this.paymentRepository.findOne({
@@ -162,7 +162,7 @@ export class PaymentService {
     });
 
     if (!payment) {
-      return `${this.vnpayConfiguration.frontendUrl}/payment-fail?orderId=${query.vnp_TxnRef}`;
+      return `${this.vnpayConfiguration.frontendUrl}/payment-fail`;
     }
 
     if (query.vnp_ResponseCode === '00') {
@@ -174,13 +174,13 @@ export class PaymentService {
       await this.bookingRepository.save(payment.booking);
       await this.paymentRepository.save(payment);
 
-      return `${this.vnpayConfiguration.frontendUrl}/payment-success?orderId=${query.vnp_TxnRef}`;
+      return `${this.vnpayConfiguration.frontendUrl}/payment-success`;
     } else {
       // Thất bại
       payment.status = PaymentStatus.FAILED;
       await this.paymentRepository.save(payment);
 
-      return `${this.vnpayConfiguration.frontendUrl}/payment-fail?orderId=${query.vnp_TxnRef}`;
+      return `${this.vnpayConfiguration.frontendUrl}/payment-fail`;
     }
   }
 

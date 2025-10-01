@@ -722,7 +722,7 @@ export class BookingService {
     const query = this.bookingRepository
       .createQueryBuilder('booking')
       .leftJoinAndSelect('booking.room', 'room')
-      .leftJoinAndSelect('booking.typeRoom', 'typeRoom')
+      .leftJoinAndSelect('room.typeRoom', 'typeRoom')
       .leftJoinAndSelect('booking.user', 'user')
       .leftJoinAndSelect('booking.customer', 'customer')
       .where('booking.startTime <= :tomorrow', { tomorrow })

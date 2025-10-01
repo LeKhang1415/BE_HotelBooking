@@ -8,7 +8,7 @@ export class GetReviewBaseDto {
   roomId?: string;
 
   @IsOptional()
-  @IsInt()
+  @IsString()
   userId?: string;
 
   @IsOptional()

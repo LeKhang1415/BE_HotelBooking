@@ -30,6 +30,11 @@ export class ReviewController {
     return await this.reviewService.create(user.sub, createReviewDto);
   }
 
+  @Get()
+  async findAll(@Query() getReviewDto: GetReviewDto) {
+    return await this.reviewService.findAll(getReviewDto);
+  }
+
   @Get('room/:roomId')
   async getReviewsByRoom(
     @Param('roomId') roomId: string,

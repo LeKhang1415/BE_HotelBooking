@@ -14,6 +14,7 @@ import { BookingStatus } from '../booking/enums/booking-status';
 import { UpdateReviewDto } from './dtos/update-review.dto';
 import { GetReviewDto } from './dtos/get-review.dto';
 import { PaginationProvider } from 'src/common/pagination/providers/pagination.provider';
+import { UserRole } from '../users/enum/user-role.enum';
 
 @Injectable()
 export class ReviewService {
@@ -131,11 +132,10 @@ export class ReviewService {
     }
 
     // Kiểm tra quyền sở hữu
-    if (review.user.id !== userId) {
+    if (review.user.id !== userId && review.user.role !== UserRole.Staff) {
       throw new ForbiddenException('Bạn không có quyền xóa review này');
     }
 
-    // Soft delete - set isActive = false
     review.isActive = false;
 
     await this.reviewRepository.save(review);
@@ -155,8 +155,7 @@ export class ReviewService {
       .createQueryBuilder('review')
       .leftJoinAndSelect('review.user', 'user')
       .leftJoinAndSelect('review.room', 'room')
-      .leftJoinAndSelect('review.booking', 'booking')
-      .where('review.isActive = :isActive', { isActive: true });
+      .leftJoinAndSelect('review.booking', 'booking');
 
     if (roomId) {
       queryBuilder.andWhere('room.id = :roomId', { roomId });
@@ -170,7 +169,6 @@ export class ReviewService {
       queryBuilder.andWhere('review.rating = :rating', { rating });
     }
 
-    // Sorting
     queryBuilder.orderBy(`review.${sortBy}`, sortOrder);
 
     return await this.paginationProvider.paginateQueryBuilder(

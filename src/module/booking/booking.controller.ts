@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   ParseUUIDPipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import {
@@ -113,9 +114,26 @@ export class BookingController {
     );
   }
 
+  @Roles(UserRole.Staff)
   @Get('today/summary')
   async getTodaySummary() {
     return this.bookingService.getTodayOccupancySummary();
+  }
+
+  @Get('top-rooms')
+  async getTopRoomBookings(
+    @Query('year') year?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedYear = year ? Number(year) : undefined;
+    const parsedLimit = limit ? Number(limit) : 3;
+    return this.bookingService.getTopRoomBookings(parsedYear, parsedLimit);
+  }
+
+  @Roles(UserRole.Staff)
+  @Get('top-monthly-bookings')
+  async getMonthlyBookings(@Query('year', ParseIntPipe) year: number) {
+    return this.bookingService.getMonthlyBookings(year);
   }
 
   @Roles(UserRole.Staff)

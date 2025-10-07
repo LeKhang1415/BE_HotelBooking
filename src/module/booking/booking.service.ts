@@ -959,6 +959,115 @@ export class BookingService {
     return updated;
   }
 
+  async getMonthlyBookings(year: number) {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+
+    // Query thống kê booking theo tháng sử dụng startTime
+    const bookings = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .select(`EXTRACT(MONTH FROM booking.startTime)`, 'month')
+      .addSelect('COUNT(booking.bookingId)', 'bookingCount')
+      .addSelect('SUM(booking.totalAmount)', 'totalRevenue')
+      .where('booking.startTime BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      })
+      .andWhere('booking.bookingStatus NOT IN (:...excludedStatuses)', {
+        excludedStatuses: [
+          BookingStatus.Cancelled,
+          BookingStatus.Rejected,
+          BookingStatus.NoShow,
+        ],
+      })
+      .groupBy('month')
+      .getRawMany();
+
+    // Tạo mảng 12 tháng với giá trị mặc định là 0
+    const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      bookingCount: 0,
+      totalRevenue: 0,
+    }));
+
+    // Fill dữ liệu thực tế vào các tháng có booking
+    bookings.forEach((booking) => {
+      const monthIndex = parseInt(booking.month) - 1;
+      const revenue = parseFloat(booking.totalRevenue || 0);
+
+      monthlyData[monthIndex] = {
+        month: parseInt(booking.month),
+        bookingCount: parseInt(booking.bookingCount),
+        totalRevenue: revenue,
+      };
+    });
+
+    // Tính tổng cho cả năm
+    const totalBookings = monthlyData.reduce(
+      (sum, m) => sum + m.bookingCount,
+      0,
+    );
+    const totalRevenue = monthlyData.reduce(
+      (sum, m) => sum + m.totalRevenue,
+      0,
+    );
+
+    return {
+      year,
+      totalBookings,
+      totalRevenue,
+      averageBookingsPerMonth: Math.round(totalBookings / 12),
+      averageRevenuePerMonth: Math.round(totalRevenue / 12),
+      monthlyData,
+    };
+  }
+
+  async getTopRoomBookings(year?: number, limit = 3) {
+    const params: any = {
+      excludedStatuses: [
+        BookingStatus.Cancelled,
+        BookingStatus.Rejected,
+        BookingStatus.NoShow,
+      ],
+    };
+
+    let whereCondition = '';
+
+    if (year) {
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31, 23, 59, 59);
+      whereCondition = 'booking.startTime BETWEEN :startDate AND :endDate';
+      params.startDate = startDate;
+      params.endDate = endDate;
+    }
+
+    const topRooms = await this.bookingRepository
+      .createQueryBuilder('booking')
+      .leftJoin('booking.room', 'room')
+      .select('room.id', 'roomId')
+      .addSelect('room.name', 'roomName')
+      .addSelect('room.pricePerHour', 'roomPricePerHour')
+      .addSelect('room.image', 'roomImage')
+      .addSelect('COUNT(booking.bookingId)', 'totalBookings')
+      .addSelect('COALESCE(SUM(booking.totalAmount), 0)', 'totalRevenue')
+      .where('booking.bookingStatus NOT IN (:...excludedStatuses)', params)
+      .andWhere(whereCondition || '1=1')
+      .groupBy('room.id')
+      .addGroupBy('room.name')
+      .orderBy('"totalBookings"', 'DESC')
+      .limit(limit)
+      .getRawMany();
+
+    return topRooms.map((r) => ({
+      roomId: r.roomId,
+      roomName: r.roomName,
+      roomPricePerHour: Number(r.roomPricePerHour),
+      roomImage: r.roomImage,
+      totalBookings: Number(r.totalBookings),
+      totalRevenue: Number(r.totalRevenue),
+    }));
+  }
+
   private validateBookingTime(
     startTime: Date,
     endTime: Date,
